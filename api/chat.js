@@ -1,5 +1,6 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { createClient } from '@supabase/supabase-js';
+import sharp from 'sharp';
 
 // Helper to process attachments into Claude content blocks
 async function processAttachments(attachments, supabase) {
@@ -21,17 +22,22 @@ async function processAttachments(attachments, supabase) {
         }
 
         const arrayBuffer = await data.arrayBuffer();
-        const base64 = Buffer.from(arrayBuffer).toString('base64');
+        const imageBuffer = Buffer.from(arrayBuffer);
 
-        // Map MIME types to Claude's expected format
-        let mediaType = att.type;
-        if (mediaType === 'image/jpg') mediaType = 'image/jpeg';
+        // Compress and resize to fit under 5MB limit
+        const compressedBuffer = await sharp(imageBuffer)
+          .resize(1600, 1600, { fit: 'inside', withoutEnlargement: true })
+          .jpeg({ quality: 80 })
+          .toBuffer();
+
+        const base64 = compressedBuffer.toString('base64');
+        console.log(`Chat image compressed: ${imageBuffer.length} -> ${compressedBuffer.length} bytes`);
 
         contentBlocks.push({
           type: 'image',
           source: {
             type: 'base64',
-            media_type: mediaType,
+            media_type: 'image/jpeg',
             data: base64,
           },
         });
@@ -265,7 +271,7 @@ export default async function handler(req, res) {
 
     // Call Claude API
     const response = await anthropic.messages.create({
-      model: 'claude-sonnet-4-0',
+      model: 'claude-sonnet-4-20250514',
       max_tokens: 1024,
       system: systemPrompt,
       messages: messages,
