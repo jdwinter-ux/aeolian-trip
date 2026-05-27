@@ -1,0 +1,87 @@
+# Aeolian Islands Voyage Journal
+
+A shared travel journal for the Aeolian Islands yacht charter (June 12–19, 2025).
+
+## Features
+
+- **Day-by-day itinerary** with timeline, activities, and meals
+- **Shared notes** — all travelers can add notes to each day
+- **Photo journal** with AI-powered identification (landmarks, food, places)
+- **Multi-user support** via magic link authentication
+- **PWA** — add to home screen for app-like experience
+
+## Tech Stack
+
+- **Frontend:** Vite + React
+- **Hosting:** Vercel
+- **Backend:** Supabase (Postgres + Auth + Storage)
+- **AI:** Anthropic Claude (photo identification)
+
+## Local Development
+
+1. Clone the repo:
+   ```bash
+   git clone https://github.com/jdwinter-ux/aeolian-trip.git
+   cd aeolian-trip
+   ```
+
+2. Install dependencies:
+   ```bash
+   npm install
+   ```
+
+3. Copy `.env.example` to `.env` and fill in your values:
+   ```bash
+   cp .env.example .env
+   ```
+
+4. Run the dev server:
+   ```bash
+   npm run dev
+   ```
+
+## Deployment
+
+The app is deployed on Vercel. Any push to `main` triggers a new deployment.
+
+### Environment Variables (set in Vercel dashboard)
+
+| Variable | Description |
+|----------|-------------|
+| `VITE_SUPABASE_URL` | Your Supabase project URL |
+| `VITE_SUPABASE_ANON_KEY` | Supabase anon/public key |
+| `VITE_TRIP_PASSCODE` | Shared passcode for trip members |
+| `ANTHROPIC_API_KEY` | Anthropic API key (server-side only) |
+| `SUPABASE_SERVICE_ROLE_KEY` | Supabase service role key (server-side only) |
+
+## Operating Notes
+
+### Adding a Guest
+
+Simply share the trip passcode with them. They enter their email + passcode, receive a magic link, and they're in.
+
+### Checking Usage/Costs
+
+- **Supabase:** Dashboard → Project → Usage
+- **Anthropic:** console.anthropic.com → Usage
+- **Vercel:** Dashboard → Project → Usage
+
+### Rotating the Passcode
+
+1. Update `VITE_TRIP_PASSCODE` in Vercel environment variables
+2. Redeploy (or wait for automatic deployment)
+3. Share the new passcode with trip members
+
+Note: Existing logged-in users stay logged in. Only new logins require the updated passcode.
+
+## Future Enhancements
+
+- Map integration showing photo locations
+- Realtime sync (Supabase Realtime)
+- Photo editing/cropping before upload
+- Export trip journal as PDF
+- Offline support with service worker
+
+---
+
+Built for the M/Y TWINS Aeolian Islands charter, June 2025.

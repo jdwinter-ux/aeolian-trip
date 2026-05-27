@@ -1,0 +1,217 @@
+import { useState } from 'react';
+import { supabase } from '../lib/supabase';
+
+const TRIP_PASSCODE = import.meta.env.VITE_TRIP_PASSCODE;
+
+export default function LoginScreen() {
+  const [email, setEmail] = useState('');
+  const [passcode, setPasscode] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [sent, setSent] = useState(false);
+  const [error, setError] = useState('');
+
+  const handleLogin = async (e) => {
+    e.preventDefault();
+    setError('');
+
+    if (passcode !== TRIP_PASSCODE) {
+      setError('Invalid trip passcode');
+      return;
+    }
+
+    if (!email || !email.includes('@')) {
+      setError('Please enter a valid email');
+      return;
+    }
+
+    setLoading(true);
+
+    const { error: authError } = await supabase.auth.signInWithOtp({
+      email,
+      options: {
+        emailRedirectTo: window.location.origin,
+      },
+    });
+
+    setLoading(false);
+
+    if (authError) {
+      setError(authError.message);
+    } else {
+      setSent(true);
+    }
+  };
+
+  if (sent) {
+    return (
+      <div style={{
+        minHeight: '100vh',
+        background: 'linear-gradient(160deg, #0a1628 0%, #0d2444 40%, #0a1628 100%)',
+        fontFamily: "'Georgia', 'Times New Roman', serif",
+        color: '#e8dcc8',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: '1rem',
+      }}>
+        <div style={{
+          background: 'rgba(255,255,255,0.03)',
+          border: '1px solid rgba(255,200,80,0.15)',
+          borderRadius: '16px',
+          padding: '2.5rem 2rem',
+          maxWidth: '400px',
+          width: '100%',
+          textAlign: 'center',
+        }}>
+          <div style={{ fontSize: '3rem', marginBottom: '1rem' }}>✉️</div>
+          <h2 style={{ color: '#f5e6c8', margin: '0 0 0.5rem', fontSize: '1.4rem', fontWeight: 400 }}>
+            Check Your Email
+          </h2>
+          <p style={{ color: '#8bacc8', fontSize: '0.9rem', lineHeight: 1.6, margin: 0 }}>
+            We sent a login link to<br />
+            <span style={{ color: '#c8a84b' }}>{email}</span>
+          </p>
+          <p style={{ color: '#6a8898', fontSize: '0.8rem', marginTop: '1.5rem' }}>
+            Click the link in your email to join the voyage journal.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div style={{
+      minHeight: '100vh',
+      background: 'linear-gradient(160deg, #0a1628 0%, #0d2444 40%, #0a1628 100%)',
+      fontFamily: "'Georgia', 'Times New Roman', serif",
+      color: '#e8dcc8',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      padding: '1rem',
+    }}>
+      {/* Decorative backgrounds */}
+      <div style={{
+        position: 'fixed', bottom: 0, left: 0, right: 0, height: '180px',
+        background: 'linear-gradient(180deg, transparent, rgba(0,80,160,0.15))',
+        pointerEvents: 'none', zIndex: 0,
+      }} />
+      <div style={{
+        position: 'fixed', top: 0, right: '-100px', width: '500px', height: '500px',
+        background: 'radial-gradient(circle, rgba(255,180,50,0.06) 0%, transparent 70%)',
+        pointerEvents: 'none', zIndex: 0,
+      }} />
+
+      <div style={{
+        background: 'rgba(255,255,255,0.03)',
+        border: '1px solid rgba(255,200,80,0.15)',
+        borderRadius: '16px',
+        padding: '2.5rem 2rem',
+        maxWidth: '400px',
+        width: '100%',
+        position: 'relative',
+        zIndex: 1,
+      }}>
+        <div style={{ textAlign: 'center', marginBottom: '2rem' }}>
+          <div style={{ fontSize: '0.7rem', letterSpacing: '0.25em', color: '#c8a84b', textTransform: 'uppercase', marginBottom: '0.5rem' }}>
+            ⚓ Voyage Journal
+          </div>
+          <h1 style={{ margin: 0, fontSize: '1.8rem', fontWeight: 400, color: '#f5e6c8', letterSpacing: '0.02em' }}>
+            Aeolian Islands
+          </h1>
+          <div style={{ fontSize: '0.85rem', color: '#8bacc8', marginTop: '0.3rem' }}>
+            June 12–19, 2025
+          </div>
+        </div>
+
+        <form onSubmit={handleLogin}>
+          <div style={{ marginBottom: '1rem' }}>
+            <label style={{ display: 'block', fontSize: '0.75rem', color: '#8bacc8', marginBottom: '0.4rem', letterSpacing: '0.08em' }}>
+              TRIP PASSCODE
+            </label>
+            <input
+              type="password"
+              value={passcode}
+              onChange={(e) => setPasscode(e.target.value)}
+              placeholder="Enter shared passcode"
+              style={{
+                width: '100%',
+                boxSizing: 'border-box',
+                background: 'rgba(255,255,255,0.05)',
+                border: '1px solid rgba(255,200,80,0.2)',
+                borderRadius: '8px',
+                padding: '0.8rem 1rem',
+                color: '#e8dcc8',
+                fontFamily: 'inherit',
+                fontSize: '1rem',
+                outline: 'none',
+              }}
+            />
+          </div>
+
+          <div style={{ marginBottom: '1.5rem' }}>
+            <label style={{ display: 'block', fontSize: '0.75rem', color: '#8bacc8', marginBottom: '0.4rem', letterSpacing: '0.08em' }}>
+              YOUR EMAIL
+            </label>
+            <input
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="you@example.com"
+              style={{
+                width: '100%',
+                boxSizing: 'border-box',
+                background: 'rgba(255,255,255,0.05)',
+                border: '1px solid rgba(255,200,80,0.2)',
+                borderRadius: '8px',
+                padding: '0.8rem 1rem',
+                color: '#e8dcc8',
+                fontFamily: 'inherit',
+                fontSize: '1rem',
+                outline: 'none',
+              }}
+            />
+          </div>
+
+          {error && (
+            <div style={{
+              background: 'rgba(220,80,60,0.12)',
+              border: '1px solid rgba(220,80,60,0.3)',
+              borderRadius: '8px',
+              padding: '0.7rem 1rem',
+              color: '#f0a090',
+              fontSize: '0.85rem',
+              marginBottom: '1rem',
+            }}>
+              {error}
+            </div>
+          )}
+
+          <button
+            type="submit"
+            disabled={loading}
+            style={{
+              width: '100%',
+              padding: '0.9rem',
+              background: loading ? 'rgba(200,168,75,0.3)' : 'linear-gradient(135deg, #c8a84b, #e8c87a)',
+              border: 'none',
+              borderRadius: '8px',
+              color: '#0a1628',
+              fontWeight: 700,
+              fontFamily: 'inherit',
+              fontSize: '0.95rem',
+              cursor: loading ? 'not-allowed' : 'pointer',
+              letterSpacing: '0.05em',
+            }}
+          >
+            {loading ? 'Sending...' : 'Send Login Link'}
+          </button>
+        </form>
+
+        <p style={{ textAlign: 'center', color: '#6a8898', fontSize: '0.75rem', marginTop: '1.5rem', lineHeight: 1.5 }}>
+          Enter the trip passcode shared by your host<br />to receive a magic login link.
+        </p>
+      </div>
+    </div>
+  );
+}
