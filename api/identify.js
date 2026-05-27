@@ -1,5 +1,6 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { createClient } from '@supabase/supabase-js';
+import sharp from 'sharp';
 
 export default async function handler(req, res) {
   // Only allow POST
@@ -56,22 +57,21 @@ export default async function handler(req, res) {
       return res.status(500).json({ error: 'Failed to download photo' });
     }
 
-    // Convert to base64
+    // Convert to buffer
     const arrayBuffer = await photoData.arrayBuffer();
-    const base64 = Buffer.from(arrayBuffer).toString('base64');
+    const imageBuffer = Buffer.from(arrayBuffer);
 
-    // Determine media type
-    const extension = storage_path.split('.').pop().toLowerCase();
-    const mediaTypes = {
-      jpg: 'image/jpeg',
-      jpeg: 'image/jpeg',
-      png: 'image/png',
-      gif: 'image/gif',
-      webp: 'image/webp',
-    };
-    const mediaType = mediaTypes[extension] || 'image/jpeg';
+    // Compress and resize image to fit under 5MB limit
+    // Max dimension 1600px, quality 80%
+    const compressedBuffer = await sharp(imageBuffer)
+      .resize(1600, 1600, { fit: 'inside', withoutEnlargement: true })
+      .jpeg({ quality: 80 })
+      .toBuffer();
 
-    // Call Anthropic API
+    const base64 = compressedBuffer.toString('base64');
+    console.log(`Image compressed: ${imageBuffer.length} -> ${compressedBuffer.length} bytes`);
+
+    // Call Anthropic API with current model
     const message = await anthropic.messages.create({
       model: 'claude-sonnet-4-20250514',
       max_tokens: 1000,
@@ -83,7 +83,7 @@ export default async function handler(req, res) {
               type: 'image',
               source: {
                 type: 'base64',
-                media_type: mediaType,
+                media_type: 'image/jpeg',
                 data: base64,
               },
             },
@@ -124,7 +124,6 @@ export default async function handler(req, res) {
 
     if (updateError) {
       console.error('Update error:', updateError);
-      // Still return the parsed result even if update fails
     }
 
     return res.status(200).json(parsed);
