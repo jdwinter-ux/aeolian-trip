@@ -1,17 +1,24 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { createClient } from '@supabase/supabase-js';
 
-const anthropic = new Anthropic({
-  apiKey: process.env.ANTHROPIC_API_KEY,
-});
-
-const supabaseUrl = process.env.VITE_SUPABASE_URL;
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-
 export default async function handler(req, res) {
   // Only allow POST
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
+  }
+
+  // Check environment variables
+  const supabaseUrl = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
+  const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  const anthropicKey = process.env.ANTHROPIC_API_KEY;
+
+  if (!supabaseUrl || !supabaseServiceKey || !anthropicKey) {
+    console.error('Missing env vars:', {
+      hasSupabaseUrl: !!supabaseUrl,
+      hasServiceKey: !!supabaseServiceKey,
+      hasAnthropicKey: !!anthropicKey,
+    });
+    return res.status(500).json({ error: 'Server configuration error' });
   }
 
   // Verify authentication
@@ -22,7 +29,8 @@ export default async function handler(req, res) {
 
   const token = authHeader.split(' ')[1];
 
-  // Create Supabase client with service role for admin access
+  // Create clients
+  const anthropic = new Anthropic({ apiKey: anthropicKey });
   const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
   // Verify the JWT token
