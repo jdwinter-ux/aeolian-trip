@@ -1,6 +1,50 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { createClient } from '@supabase/supabase-js';
 
+// Helper to process attachments into Claude content blocks
+async function processAttachments(attachments, supabase) {
+  if (!attachments || attachments.length === 0) return [];
+
+  const contentBlocks = [];
+
+  for (const att of attachments) {
+    try {
+      // Only process images for now
+      if (att.type?.startsWith('image/')) {
+        const { data, error } = await supabase.storage
+          .from('chat-attachments')
+          .download(att.storage_path);
+
+        if (error) {
+          console.error('Failed to download attachment:', error);
+          continue;
+        }
+
+        const arrayBuffer = await data.arrayBuffer();
+        const base64 = Buffer.from(arrayBuffer).toString('base64');
+
+        // Map MIME types to Claude's expected format
+        let mediaType = att.type;
+        if (mediaType === 'image/jpg') mediaType = 'image/jpeg';
+
+        contentBlocks.push({
+          type: 'image',
+          source: {
+            type: 'base64',
+            media_type: mediaType,
+            data: base64,
+          },
+        });
+      }
+      // For PDFs and text files, we could extract text content here in the future
+    } catch (err) {
+      console.error('Error processing attachment:', err);
+    }
+  }
+
+  return contentBlocks;
+}
+
 // Trip data for context
 const TRIP = {
   title: "Aeolian Islands",
@@ -182,10 +226,25 @@ export default async function handler(req, res) {
       });
     }
 
+    // Process any attachments (images, etc.)
+    const attachmentBlocks = await processAttachments(attachments, supabase);
+
+    // Build user message content (text + any images)
+    let userContent;
+    if (attachmentBlocks.length > 0) {
+      // Multi-part message with images and text
+      userContent = [
+        ...attachmentBlocks,
+        { type: 'text', text: trimmedMessage },
+      ];
+    } else {
+      userContent = trimmedMessage;
+    }
+
     // Add the new user message
     messages.push({
       role: 'user',
-      content: trimmedMessage,
+      content: userContent,
     });
 
     // Store user message first
