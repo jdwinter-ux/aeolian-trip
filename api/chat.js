@@ -25,9 +25,10 @@ async function processAttachments(attachments, supabase) {
         const imageBuffer = Buffer.from(arrayBuffer);
 
         // Compress and resize to fit under 5MB limit
+        // Use higher resolution and quality for better recognition
         const compressedBuffer = await sharp(imageBuffer)
-          .resize(1600, 1600, { fit: 'inside', withoutEnlargement: true })
-          .jpeg({ quality: 80 })
+          .resize(2048, 2048, { fit: 'inside', withoutEnlargement: true })
+          .jpeg({ quality: 90 })
           .toBuffer();
 
         const base64 = compressedBuffer.toString('base64');

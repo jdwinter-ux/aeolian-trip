@@ -62,10 +62,10 @@ export default async function handler(req, res) {
     const imageBuffer = Buffer.from(arrayBuffer);
 
     // Compress and resize image to fit under 5MB limit
-    // Max dimension 1600px, quality 80%
+    // Higher resolution and quality for better recognition
     const compressedBuffer = await sharp(imageBuffer)
-      .resize(1600, 1600, { fit: 'inside', withoutEnlargement: true })
-      .jpeg({ quality: 80 })
+      .resize(2048, 2048, { fit: 'inside', withoutEnlargement: true })
+      .jpeg({ quality: 90 })
       .toBuffer();
 
     const base64 = compressedBuffer.toString('base64');
@@ -73,7 +73,7 @@ export default async function handler(req, res) {
 
     // Call Anthropic API with current model
     const message = await anthropic.messages.create({
-      model: 'claude-sonnet-4-0',
+      model: 'claude-sonnet-4-20250514',
       max_tokens: 1000,
       messages: [
         {
