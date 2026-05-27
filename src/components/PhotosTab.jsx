@@ -31,7 +31,21 @@ export default function PhotosTab({ day, userEmail }) {
       .order('created_at', { ascending: false });
 
     if (!error && data) {
-      setPhotos(data);
+      // Mark photos as needing retry if they haven't been identified
+      // and were created more than 2 minutes ago
+      const now = new Date();
+      const photosWithState = data.map(photo => {
+        const createdAt = new Date(photo.created_at);
+        const ageMinutes = (now - createdAt) / 1000 / 60;
+        const needsRetry = !photo.identified_at && ageMinutes > 2;
+        return {
+          ...photo,
+          _failed: needsRetry,
+          title: needsRetry ? (photo.title === 'Identifying...' ? 'Photo' : photo.title) : photo.title,
+          description: needsRetry ? 'Identification failed — tap to retry.' : photo.description,
+        };
+      });
+      setPhotos(photosWithState);
     }
     setLoading(false);
   }
