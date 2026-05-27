@@ -4,27 +4,51 @@ export async function sendChatMessage(message, attachments = null) {
   const { data: { session } } = await supabase.auth.getSession();
 
   if (!session) {
-    throw new Error('Not authenticated');
+    throw new Error('Please log in to chat with Marco');
   }
 
-  const response = await fetch('/api/chat', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${session.access_token}`,
-    },
-    body: JSON.stringify({
-      message,
-      attachments,
-    }),
-  });
-
-  if (!response.ok) {
-    const error = await response.json().catch(() => ({ error: 'Chat request failed' }));
-    throw new Error(error.error || 'Chat request failed');
+  // Client-side validation
+  const trimmed = message?.trim();
+  if (!trimmed) {
+    throw new Error('Message cannot be empty');
+  }
+  if (trimmed.length > 4000) {
+    throw new Error('Message too long (max 4000 characters)');
   }
 
-  return response.json();
+  // Add timeout for slow connections
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 60000); // 60s timeout
+
+  try {
+    const response = await fetch('/api/chat', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${session.access_token}`,
+      },
+      body: JSON.stringify({
+        message: trimmed,
+        attachments,
+      }),
+      signal: controller.signal,
+    });
+
+    clearTimeout(timeoutId);
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({}));
+      throw new Error(error.error || `Request failed (${response.status})`);
+    }
+
+    return response.json();
+  } catch (err) {
+    clearTimeout(timeoutId);
+    if (err.name === 'AbortError') {
+      throw new Error('Request timed out. Please try again.');
+    }
+    throw err;
+  }
 }
 
 export async function fetchChatHistory(limit = 50) {

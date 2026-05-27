@@ -12,6 +12,7 @@ export default function ChatTab({ userEmail }) {
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(null);
   const [sending, setSending] = useState(false);
   const [attachments, setAttachments] = useState([]);
   const [uploadingAttachment, setUploadingAttachment] = useState(false);
@@ -28,11 +29,13 @@ export default function ChatTab({ userEmail }) {
 
   async function loadChatHistory() {
     setLoading(true);
+    setLoadError(null);
     try {
       const history = await fetchChatHistory();
       setMessages(history);
     } catch (err) {
       console.error('Failed to load chat history:', err);
+      setLoadError('Failed to load conversation. Check your connection.');
     }
     setLoading(false);
   }
@@ -78,15 +81,25 @@ export default function ChatTab({ userEmail }) {
       setMessages(prev => [...prev, assistantMsg]);
     } catch (err) {
       console.error('Failed to send message:', err);
-      // Update the optimistic message to show error
+      // Update the optimistic message to show error with message and original content for retry
       setMessages(prev => prev.map(m =>
         m.id === optimisticUserMsg.id
-          ? { ...m, _error: true }
+          ? { ...m, _error: true, _errorMessage: err.message }
           : m
       ));
     }
 
     setSending(false);
+  }
+
+  async function handleRetry(failedMsg) {
+    // Remove the failed message
+    setMessages(prev => prev.filter(m => m.id !== failedMsg.id));
+    // Restore input and attachments
+    setInput(failedMsg.content);
+    if (failedMsg.attachments) {
+      setAttachments(failedMsg.attachments);
+    }
   }
 
   async function handleFileSelect(e) {
@@ -167,6 +180,27 @@ export default function ChatTab({ userEmail }) {
           <div style={{ textAlign: 'center', padding: '3rem 1rem', color: '#6a8898', fontSize: '0.9rem' }}>
             Loading conversation...
           </div>
+        ) : loadError ? (
+          <div style={{ textAlign: 'center', padding: '3rem 1rem' }}>
+            <div style={{ color: '#e88070', fontSize: '0.9rem', marginBottom: '0.8rem' }}>
+              {loadError}
+            </div>
+            <button
+              onClick={loadChatHistory}
+              style={{
+                padding: '0.5rem 1rem',
+                background: 'rgba(200,168,75,0.2)',
+                border: '1px solid rgba(200,168,75,0.4)',
+                borderRadius: '6px',
+                color: '#c8a84b',
+                fontSize: '0.85rem',
+                cursor: 'pointer',
+                fontFamily: 'inherit',
+              }}
+            >
+              Try Again
+            </button>
+          </div>
         ) : messages.length === 0 ? (
           <div style={{
             background: 'rgba(200,168,75,0.08)',
@@ -236,9 +270,27 @@ export default function ChatTab({ userEmail }) {
                   }}>
                     {msg.content}
                     {msg._error && (
-                      <span style={{ display: 'block', fontSize: '0.75rem', marginTop: '0.3rem', color: '#e88070' }}>
-                        Failed to send
-                      </span>
+                      <div style={{ marginTop: '0.4rem' }}>
+                        <span style={{ display: 'block', fontSize: '0.7rem', color: '#e88070' }}>
+                          {msg._errorMessage || 'Failed to send'}
+                        </span>
+                        <button
+                          onClick={() => handleRetry(msg)}
+                          style={{
+                            marginTop: '0.3rem',
+                            padding: '0.2rem 0.5rem',
+                            background: 'rgba(220,80,60,0.2)',
+                            border: '1px solid rgba(220,80,60,0.4)',
+                            borderRadius: '4px',
+                            color: '#f0a090',
+                            fontSize: '0.7rem',
+                            cursor: 'pointer',
+                            fontFamily: 'inherit',
+                          }}
+                        >
+                          Retry
+                        </button>
+                      </div>
                     )}
                   </div>
                   {msg.attachments && msg.attachments.length > 0 && (

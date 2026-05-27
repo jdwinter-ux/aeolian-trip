@@ -125,6 +125,15 @@ export default async function handler(req, res) {
     return res.status(400).json({ error: 'Message is required' });
   }
 
+  // Validate message length (prevent abuse)
+  const trimmedMessage = message.trim();
+  if (trimmedMessage.length === 0) {
+    return res.status(400).json({ error: 'Message cannot be empty' });
+  }
+  if (trimmedMessage.length > 4000) {
+    return res.status(400).json({ error: 'Message too long (max 4000 characters)' });
+  }
+
   try {
     // Fetch context data in parallel
     const [photosResult, notesResult, chatHistoryResult] = await Promise.all([
@@ -176,7 +185,7 @@ export default async function handler(req, res) {
     // Add the new user message
     messages.push({
       role: 'user',
-      content: message,
+      content: trimmedMessage,
     });
 
     // Store user message first
@@ -185,7 +194,7 @@ export default async function handler(req, res) {
       .insert({
         role: 'user',
         author_email: user.email,
-        content: message,
+        content: trimmedMessage,
         attachments: attachments || null,
       })
       .select()
@@ -228,9 +237,22 @@ export default async function handler(req, res) {
 
   } catch (error) {
     console.error('Chat error:', error);
+
+    // Handle specific error types
+    if (error.status === 429) {
+      return res.status(429).json({
+        error: 'Marco is busy right now. Please try again in a moment.',
+      });
+    }
+
+    if (error.status === 401 || error.status === 403) {
+      return res.status(500).json({
+        error: 'Configuration error. Please contact support.',
+      });
+    }
+
     return res.status(500).json({
-      error: 'Failed to get response from Marco',
-      details: error.message,
+      error: 'Failed to get response from Marco. Please try again.',
     });
   }
 }
