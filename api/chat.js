@@ -92,7 +92,7 @@ function getCurrentDay() {
 }
 
 function buildSystemPrompt(context) {
-  const { currentDay, photos, notes, itinerary } = context;
+  const { currentDay, photos, notes, travelers, itinerary } = context;
 
   let photoSummary = 'No photos uploaded yet.';
   if (photos && photos.length > 0) {
@@ -106,6 +106,16 @@ function buildSystemPrompt(context) {
     notesSummary = notes.map(n =>
       `- Day ${n.day_number}: "${n.body.slice(0, 100)}${n.body.length > 100 ? '...' : ''}"`
     ).join('\n');
+  }
+
+  let travelersSummary = 'No travelers registered yet.';
+  if (travelers && travelers.length > 0) {
+    travelersSummary = travelers.map(t => {
+      const parts = [t.name];
+      if (t.role) parts.push(`(${t.role})`);
+      if (t.description) parts.push(`- ${t.description}`);
+      return parts.join(' ');
+    }).join('\n');
   }
 
   let itinerarySummary = TRIP.days.map(d =>
@@ -168,6 +178,12 @@ ${photoSummary}
 RECENT JOURNAL NOTES:
 ${notesSummary}
 
+=== PEOPLE ON THIS TRIP ===
+${travelersSummary}
+
+=== MANAGING TRAVELERS ===
+You can help manage the list of people on this trip. When someone asks you to add a person, update their description, or remove someone, use the appropriate tool. This helps with photo identification - the more details (physical description, usual clothing, etc.) the better for recognizing people in photos.
+
 Be helpful, specific, and enthusiastic! Share local tips and hidden gems. Reference the group's photos and notes when relevant. Keep responses conversational unless they ask for detailed information.`;
 }
 
@@ -226,7 +242,7 @@ export default async function handler(req, res) {
 
   try {
     // Fetch context data in parallel
-    const [photosResult, notesResult, chatHistoryResult] = await Promise.all([
+    const [photosResult, notesResult, chatHistoryResult, travelersResult] = await Promise.all([
       // Get all photos with descriptions
       supabase
         .from('trip_photos')
@@ -248,11 +264,18 @@ export default async function handler(req, res) {
         .select('role, content, created_at')
         .order('created_at', { ascending: false })
         .limit(20),
+
+      // Get travelers
+      supabase
+        .from('trip_travelers')
+        .select('id, name, role, description')
+        .order('role', { ascending: true }),
     ]);
 
     const photos = photosResult.data || [];
     const notes = notesResult.data || [];
     const chatHistory = (chatHistoryResult.data || []).reverse(); // Oldest first
+    const travelers = travelersResult.data || [];
 
     // Build context
     const currentDay = getCurrentDay();
@@ -260,6 +283,7 @@ export default async function handler(req, res) {
       currentDay,
       photos,
       notes,
+      travelers,
       itinerary: TRIP.days,
     });
 
@@ -318,15 +342,139 @@ export default async function handler(req, res) {
       console.error('Error storing user message:', userMsgError);
     }
 
-    // Call Claude API
-    const response = await anthropic.messages.create({
+    // Define tools for managing travelers
+    const tools = [
+      {
+        name: 'add_traveler',
+        description: 'Add a new person (guest or crew) to the trip. Use this when someone asks to add a person to the travelers list.',
+        input_schema: {
+          type: 'object',
+          properties: {
+            name: { type: 'string', description: 'The person\'s name' },
+            role: { type: 'string', description: 'Their role: guest, crew, captain, chef, etc.' },
+            description: { type: 'string', description: 'Physical description or identifying features (hair color, height, usual clothing, etc.)' },
+          },
+          required: ['name'],
+        },
+      },
+      {
+        name: 'update_traveler',
+        description: 'Update an existing traveler\'s information. Use this to change their description or role.',
+        input_schema: {
+          type: 'object',
+          properties: {
+            name: { type: 'string', description: 'The person\'s name to find and update' },
+            role: { type: 'string', description: 'Updated role (optional)' },
+            description: { type: 'string', description: 'Updated description (optional)' },
+          },
+          required: ['name'],
+        },
+      },
+      {
+        name: 'remove_traveler',
+        description: 'Remove a person from the travelers list.',
+        input_schema: {
+          type: 'object',
+          properties: {
+            name: { type: 'string', description: 'The person\'s name to remove' },
+          },
+          required: ['name'],
+        },
+      },
+      {
+        name: 'list_travelers',
+        description: 'List all current travelers and crew. Use when someone asks who is on the trip.',
+        input_schema: {
+          type: 'object',
+          properties: {},
+        },
+      },
+    ];
+
+    // Call Claude API with tools
+    let response = await anthropic.messages.create({
       model: 'claude-sonnet-4-20250514',
       max_tokens: 1024,
       system: systemPrompt,
       messages: messages,
+      tools: tools,
     });
 
-    const assistantMessage = response.content.find(b => b.type === 'text')?.text || '';
+    // Handle tool use if Claude wants to manage travelers
+    let assistantMessage = '';
+    while (response.stop_reason === 'tool_use') {
+      const toolUseBlock = response.content.find(b => b.type === 'tool_use');
+      if (!toolUseBlock) break;
+
+      let toolResult = '';
+
+      try {
+        if (toolUseBlock.name === 'add_traveler') {
+          const { name, role, description } = toolUseBlock.input;
+          const { error } = await supabase
+            .from('trip_travelers')
+            .insert({ name, role: role || 'guest', description: description || null });
+          toolResult = error ? `Error: ${error.message}` : `Added ${name} to the trip!`;
+        }
+        else if (toolUseBlock.name === 'update_traveler') {
+          const { name, role, description } = toolUseBlock.input;
+          const updates = {};
+          if (role !== undefined) updates.role = role;
+          if (description !== undefined) updates.description = description;
+          updates.updated_at = new Date().toISOString();
+
+          const { error } = await supabase
+            .from('trip_travelers')
+            .update(updates)
+            .ilike('name', name);
+          toolResult = error ? `Error: ${error.message}` : `Updated ${name}'s information.`;
+        }
+        else if (toolUseBlock.name === 'remove_traveler') {
+          const { name } = toolUseBlock.input;
+          const { error } = await supabase
+            .from('trip_travelers')
+            .delete()
+            .ilike('name', name);
+          toolResult = error ? `Error: ${error.message}` : `Removed ${name} from the trip.`;
+        }
+        else if (toolUseBlock.name === 'list_travelers') {
+          const { data } = await supabase
+            .from('trip_travelers')
+            .select('name, role, description')
+            .order('role', { ascending: true });
+          if (data && data.length > 0) {
+            toolResult = data.map(t => {
+              const parts = [`${t.name} (${t.role || 'guest'})`];
+              if (t.description) parts.push(`: ${t.description}`);
+              return parts.join('');
+            }).join('\n');
+          } else {
+            toolResult = 'No travelers registered yet.';
+          }
+        }
+      } catch (err) {
+        toolResult = `Error: ${err.message}`;
+      }
+
+      // Add the assistant's tool use and the result to messages
+      messages.push({ role: 'assistant', content: response.content });
+      messages.push({
+        role: 'user',
+        content: [{ type: 'tool_result', tool_use_id: toolUseBlock.id, content: toolResult }],
+      });
+
+      // Continue the conversation
+      response = await anthropic.messages.create({
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 1024,
+        system: systemPrompt,
+        messages: messages,
+        tools: tools,
+      });
+    }
+
+    // Get the final text response
+    assistantMessage = response.content.find(b => b.type === 'text')?.text || '';
 
     // Store assistant response
     const { data: assistantMsgData, error: assistantMsgError } = await supabase

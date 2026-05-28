@@ -1,15 +1,14 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { createClient } from '@supabase/supabase-js';
 import sharp from 'sharp';
-import exifr from 'exifr';
 
-// Travelers on the trip - customize with actual names and descriptions
-const TRAVELERS = [
-  { name: 'Doug', description: 'Trip organizer' },
-  { name: 'Jennifer', description: '' },
-  // Add more travelers here with distinguishing features if helpful:
-  // { name: 'Mike', description: 'tall, dark hair, usually wears sunglasses' },
-];
+// Try to import exifr - it may not work in all serverless environments
+let exifr = null;
+try {
+  exifr = await import('exifr');
+} catch (e) {
+  console.log('exifr not available, GPS extraction disabled');
+}
 
 // Detailed location knowledge per day for better recognition
 const DAY_LOCATIONS = {
@@ -114,21 +113,28 @@ export default async function handler(req, res) {
     const arrayBuffer = await photoData.arrayBuffer();
     const imageBuffer = Buffer.from(arrayBuffer);
 
-    // Extract EXIF data including GPS coordinates
-    let exifData = null;
+    // Extract EXIF data including GPS coordinates (if exifr is available)
     let gpsInfo = '';
-    try {
-      exifData = await exifr.parse(imageBuffer, {
-        gps: true,
-        pick: ['latitude', 'longitude', 'DateTimeOriginal', 'Make', 'Model'],
-      });
-      if (exifData?.latitude && exifData?.longitude) {
-        gpsInfo = `\nGPS coordinates: ${exifData.latitude.toFixed(4)}°N, ${exifData.longitude.toFixed(4)}°E`;
-        console.log(`Photo GPS: ${exifData.latitude}, ${exifData.longitude}`);
+    if (exifr) {
+      try {
+        const exifData = await exifr.parse(imageBuffer, {
+          gps: true,
+          pick: ['latitude', 'longitude', 'DateTimeOriginal', 'Make', 'Model'],
+        });
+        if (exifData?.latitude && exifData?.longitude) {
+          gpsInfo = `\nGPS coordinates: ${exifData.latitude.toFixed(4)}°N, ${exifData.longitude.toFixed(4)}°E`;
+          console.log(`Photo GPS: ${exifData.latitude}, ${exifData.longitude}`);
+        }
+      } catch (exifErr) {
+        console.log('No EXIF data available:', exifErr.message);
       }
-    } catch (exifErr) {
-      console.log('No EXIF data available:', exifErr.message);
     }
+
+    // Fetch travelers from database
+    const { data: travelers } = await supabase
+      .from('trip_travelers')
+      .select('name, description, role')
+      .order('role', { ascending: true });  // crew first, then guests
 
     // Compress and resize image to fit under 5MB limit
     // Higher resolution and quality for better recognition
@@ -155,13 +161,17 @@ Known locations for this day:
 - Activities: ${dayLocations.activities.join(', ')}`;
     }
 
-    // Build traveler context
-    const travelerList = TRAVELERS.map(t =>
-      t.description ? `${t.name} (${t.description})` : t.name
-    ).join(', ');
-    const travelerContext = TRAVELERS.length > 0
-      ? `\nTravelers on this trip: ${travelerList}. If you recognize any of them in the photo, mention them by name.`
-      : '';
+    // Build traveler context from database
+    let travelerContext = '';
+    if (travelers && travelers.length > 0) {
+      const travelerList = travelers.map(t => {
+        const parts = [t.name];
+        if (t.role) parts.push(t.role);
+        if (t.description) parts.push(t.description);
+        return parts.length > 1 ? `${t.name} (${[t.role, t.description].filter(Boolean).join(', ')})` : t.name;
+      }).join(', ');
+      travelerContext = `\nPeople on this trip: ${travelerList}. If you recognize any of them in the photo, mention them by name.`;
+    }
 
     // Call Anthropic API with enriched context
     const message = await anthropic.messages.create({
