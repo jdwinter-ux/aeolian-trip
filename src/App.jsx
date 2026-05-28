@@ -5,7 +5,7 @@ import LoginScreen from './components/LoginScreen';
 import DaySelector from './components/DaySelector';
 import DayCard from './components/DayCard';
 import PlanTab from './components/PlanTab';
-import LogTab from './components/LogTab';
+import PlacesTab from './components/PlacesTab';
 import PhotosTab from './components/PhotosTab';
 import ChatTab from './components/ChatTab';
 
@@ -153,7 +153,7 @@ export default function App() {
 
         {/* Tabs */}
         <div style={{ display: 'flex', gap: '0', marginBottom: '1.2rem', background: 'rgba(255,255,255,0.04)', borderRadius: '10px', padding: '4px' }}>
-          {[['plan', '🗺️ Plan'], ['log', '📓 Log'], ['photos', '📷 Photos'], ['chat', '💬 Chat']].map(([key, label]) => (
+          {[['plan', '🗺️ Plan'], ['places', '📍 Places'], ['photos', '📷 Photos'], ['chat', '💬 Chat']].map(([key, label]) => (
             <button key={key} onClick={() => setTab(key)} style={{
               flex: 1, padding: '0.6rem', border: 'none', borderRadius: '8px',
               background: tab === key ? 'rgba(200,168,75,0.2)' : 'transparent',
@@ -166,7 +166,7 @@ export default function App() {
 
         {/* Tab content */}
         {tab === 'plan' && <PlanTab day={day} />}
-        {tab === 'log' && <LogTab day={day} userEmail={userEmail} />}
+        {tab === 'places' && <PlacesTab day={day} />}
         {tab === 'photos' && <PhotosTab day={day} userEmail={userEmail} />}
         {tab === 'chat' && <ChatTab userEmail={userEmail} />}
       </main>
