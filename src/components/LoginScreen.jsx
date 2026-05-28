@@ -36,7 +36,12 @@ export default function LoginScreen() {
     setLoading(false);
 
     if (authError) {
-      setError(authError.message);
+      // Provide friendlier messages for common errors
+      if (authError.message.toLowerCase().includes('rate limit')) {
+        setError('Too many login attempts. Please wait a minute before trying again.');
+      } else {
+        setError(authError.message);
+      }
     } else {
       setSent(true);
     }
