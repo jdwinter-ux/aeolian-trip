@@ -1,6 +1,59 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { createClient } from '@supabase/supabase-js';
 import sharp from 'sharp';
+import exifr from 'exifr';
+
+// Travelers on the trip - customize with actual names and descriptions
+const TRAVELERS = [
+  { name: 'Doug', description: 'Trip organizer' },
+  { name: 'Jennifer', description: '' },
+  // Add more travelers here with distinguishing features if helpful:
+  // { name: 'Mike', description: 'tall, dark hair, usually wears sunglasses' },
+];
+
+// Detailed location knowledge per day for better recognition
+const DAY_LOCATIONS = {
+  1: {
+    islands: ['Lipari'],
+    landmarks: ['Marina Lunga port', 'Canneto Bay', 'pumice beach', 'obsidian beach'],
+    activities: ['boarding yacht', 'welcome dinner'],
+  },
+  2: {
+    islands: ['Panarea', 'Stromboli'],
+    landmarks: ['Punta Milazzese', 'Bronze Age village', 'Cala Junco cove', 'San Pietro village', 'Lisca Bianca'],
+    activities: ['hiking', 'swimming', 'watching volcano'],
+  },
+  3: {
+    islands: ['Stromboli', 'Salina'],
+    landmarks: ['Sciara del Fuoco', 'Stromboli volcano', 'Malfa village', 'Signum restaurant'],
+    activities: ['volcano hike', 'Michelin dinner'],
+  },
+  4: {
+    islands: ['Salina'],
+    landmarks: ['Monte Fossa delle Felci', 'Lingua salt lake', 'Da Alfredo', 'Pollara cove', 'Il Postino filming location'],
+    activities: ['granita tasting', 'wine tasting', 'Malvasia', 'capers'],
+  },
+  5: {
+    islands: ['Filicudi'],
+    landmarks: ['La Canna rock spire', 'Zucco Grande abandoned village', 'Grotta del Bue Marino', 'Pecorini a Mare'],
+    activities: ['hiking', 'deep water swimming', 'sea cave visit'],
+  },
+  6: {
+    islands: ['Lipari'],
+    landmarks: ['Quattrocchi viewpoint', 'Cave di Caolino quarries', 'Valle Muria black sand beach'],
+    activities: ['biking', 'hiking', 'cannoli tableside'],
+  },
+  7: {
+    islands: ['Vulcano'],
+    landmarks: ['Gran Cratere', 'Vulcanello peninsula', 'Gelso beach', 'Il Cappero restaurant', 'Therasia Resort', 'Faraglioni sea stacks'],
+    activities: ['crater rim hike', 'fumaroles', 'Michelin dinner'],
+  },
+  8: {
+    islands: ['Vulcano', 'Lipari', 'Milazzo'],
+    landmarks: ['Marina Lunga', 'Milazzo port'],
+    activities: ['departure', 'disembarkation'],
+  },
+};
 
 export default async function handler(req, res) {
   // Only allow POST
@@ -61,6 +114,22 @@ export default async function handler(req, res) {
     const arrayBuffer = await photoData.arrayBuffer();
     const imageBuffer = Buffer.from(arrayBuffer);
 
+    // Extract EXIF data including GPS coordinates
+    let exifData = null;
+    let gpsInfo = '';
+    try {
+      exifData = await exifr.parse(imageBuffer, {
+        gps: true,
+        pick: ['latitude', 'longitude', 'DateTimeOriginal', 'Make', 'Model'],
+      });
+      if (exifData?.latitude && exifData?.longitude) {
+        gpsInfo = `\nGPS coordinates: ${exifData.latitude.toFixed(4)}°N, ${exifData.longitude.toFixed(4)}°E`;
+        console.log(`Photo GPS: ${exifData.latitude}, ${exifData.longitude}`);
+      }
+    } catch (exifErr) {
+      console.log('No EXIF data available:', exifErr.message);
+    }
+
     // Compress and resize image to fit under 5MB limit
     // Higher resolution and quality for better recognition
     const compressedBuffer = await sharp(imageBuffer)
@@ -71,7 +140,30 @@ export default async function handler(req, res) {
     const base64 = compressedBuffer.toString('base64');
     console.log(`Image compressed: ${imageBuffer.length} -> ${compressedBuffer.length} bytes`);
 
-    // Call Anthropic API with current model
+    // Extract day number from context for location lookup
+    const dayMatch = day_context.match(/Day (\d+)/);
+    const dayNumber = dayMatch ? parseInt(dayMatch[1]) : null;
+    const dayLocations = dayNumber ? DAY_LOCATIONS[dayNumber] : null;
+
+    // Build location context
+    let locationContext = '';
+    if (dayLocations) {
+      locationContext = `
+Known locations for this day:
+- Islands: ${dayLocations.islands.join(', ')}
+- Landmarks: ${dayLocations.landmarks.join(', ')}
+- Activities: ${dayLocations.activities.join(', ')}`;
+    }
+
+    // Build traveler context
+    const travelerList = TRAVELERS.map(t =>
+      t.description ? `${t.name} (${t.description})` : t.name
+    ).join(', ');
+    const travelerContext = TRAVELERS.length > 0
+      ? `\nTravelers on this trip: ${travelerList}. If you recognize any of them in the photo, mention them by name.`
+      : '';
+
+    // Call Anthropic API with enriched context
     const message = await anthropic.messages.create({
       model: 'claude-sonnet-4-20250514',
       max_tokens: 1000,
@@ -89,11 +181,17 @@ export default async function handler(req, res) {
             },
             {
               type: 'text',
-              text: `You are an Aeolian Islands travel expert. This photo was taken on ${day_context}. Respond with ONLY a JSON object (no markdown):
+              text: `You are an Aeolian Islands travel expert helping identify photos from a yacht charter trip.
+
+This photo was taken on ${day_context}.${gpsInfo}${locationContext}${travelerContext}
+
+Identify the location, landmarks, food, or people in this photo. Be specific - use the known locations list to help identify places.
+
+Respond with ONLY a JSON object (no markdown):
 {
-  "title": "short name for this photo",
+  "title": "short descriptive name (include people's names if recognized)",
   "location": "specific place / landmark identified",
-  "description": "2-3 sentence vivid travel description",
+  "description": "2-3 sentence vivid travel description mentioning people by name if present",
   "tags": ["tag1","tag2","tag3"],
   "category": one of "landmark","food","seascape","wildlife","people","architecture","activity","volcano"
 }`,
