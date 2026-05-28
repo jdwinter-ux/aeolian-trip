@@ -4,9 +4,10 @@ import sharp from 'sharp';
 
 // Helper to process attachments into Claude content blocks
 async function processAttachments(attachments, supabase) {
-  if (!attachments || attachments.length === 0) return [];
+  if (!attachments || attachments.length === 0) return { contentBlocks: [], failures: [] };
 
   const contentBlocks = [];
+  const failures = [];
 
   for (const att of attachments) {
     try {
@@ -18,6 +19,7 @@ async function processAttachments(attachments, supabase) {
 
         if (error) {
           console.error('Failed to download attachment:', error);
+          failures.push({ name: att.name, reason: 'download failed' });
           continue;
         }
 
@@ -42,14 +44,17 @@ async function processAttachments(attachments, supabase) {
             data: base64,
           },
         });
+      } else {
+        // Track unsupported types
+        failures.push({ name: att.name, reason: 'type not yet supported' });
       }
-      // For PDFs and text files, we could extract text content here in the future
     } catch (err) {
       console.error('Error processing attachment:', err);
+      failures.push({ name: att.name, reason: 'processing error' });
     }
   }
 
-  return contentBlocks;
+  return { contentBlocks, failures };
 }
 
 // Trip data for context
@@ -268,18 +273,27 @@ export default async function handler(req, res) {
     }
 
     // Process any attachments (images, etc.)
-    const attachmentBlocks = await processAttachments(attachments, supabase);
+    const { contentBlocks: attachmentBlocks, failures: attachmentFailures } = await processAttachments(attachments, supabase);
 
     // Build user message content (text + any images)
     let userContent;
+    let messageWithFailures = trimmedMessage;
+
+    // If some attachments failed, note that in the message context
+    if (attachmentFailures.length > 0) {
+      const failureNote = `\n[Note: ${attachmentFailures.length} attachment(s) could not be processed]`;
+      console.log('Attachment failures:', attachmentFailures);
+      messageWithFailures += failureNote;
+    }
+
     if (attachmentBlocks.length > 0) {
       // Multi-part message with images and text
       userContent = [
         ...attachmentBlocks,
-        { type: 'text', text: trimmedMessage },
+        { type: 'text', text: messageWithFailures },
       ];
     } else {
-      userContent = trimmedMessage;
+      userContent = messageWithFailures;
     }
 
     // Add the new user message
@@ -333,6 +347,7 @@ export default async function handler(req, res) {
     return res.status(200).json({
       response: assistantMessage,
       message_id: assistantMsgData?.id,
+      attachment_failures: attachmentFailures.length > 0 ? attachmentFailures : undefined,
     });
 
   } catch (error) {

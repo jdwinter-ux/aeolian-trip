@@ -17,10 +17,21 @@ export default function PhotosTab({ day, userEmail }) {
   const [errorMsg, setErrorMsg] = useState('');
 
   const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+  const dayNumber = day?.n;
 
   useEffect(() => {
-    fetchPhotos();
-  }, [day.n]);
+    if (dayNumber) {
+      fetchPhotos();
+    }
+  }, [dayNumber]);
+
+  if (!day || !dayNumber) {
+    return (
+      <div style={{ textAlign: 'center', padding: '3rem 1rem', color: '#6a8898' }}>
+        No day selected.
+      </div>
+    );
+  }
 
   async function fetchPhotos() {
     setLoading(true);

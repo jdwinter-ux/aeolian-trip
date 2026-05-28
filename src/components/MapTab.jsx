@@ -84,6 +84,15 @@ function FitBounds({ locations }) {
 }
 
 export default function MapTab({ day }) {
+  // Handle case where day is undefined
+  if (!day || !day.n) {
+    return (
+      <div style={{ textAlign: 'center', padding: '3rem 1rem', color: '#6a8898' }}>
+        No day selected.
+      </div>
+    );
+  }
+
   const dayNumber = day.n;
   const todayStops = DAILY_ROUTES[dayNumber] || [];
   const todayLocations = todayStops.map(key => LOCATIONS[key]);

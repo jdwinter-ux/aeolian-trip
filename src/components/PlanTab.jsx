@@ -1,4 +1,12 @@
 export default function PlanTab({ day }) {
+  if (!day || !day.timeline) {
+    return (
+      <div style={{ textAlign: 'center', padding: '3rem 1rem', color: '#6a8898' }}>
+        No plan available for this day.
+      </div>
+    );
+  }
+
   return (
     <div>
       <div style={{ fontSize: '0.75rem', color: '#8bacc8', marginBottom: '0.8rem', letterSpacing: '0.08em' }}>

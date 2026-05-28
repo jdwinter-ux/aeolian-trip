@@ -2,9 +2,12 @@ import { useState, useEffect, useRef } from 'react';
 import { sendChatMessage, fetchChatHistory, uploadChatAttachment } from '../lib/chat';
 
 function truncateEmail(email) {
-  if (!email) return '';
-  const [local, domain] = email.split('@');
-  if (!domain) return email;
+  if (!email || typeof email !== 'string') return '';
+  const atIndex = email.indexOf('@');
+  if (atIndex === -1) return email.slice(0, 10) + (email.length > 10 ? '...' : '');
+  const local = email.slice(0, atIndex);
+  const domain = email.slice(atIndex + 1);
+  if (local.length <= 6) return email;
   return `${local.slice(0, 6)}...@${domain}`;
 }
 
@@ -106,9 +109,24 @@ export default function ChatTab({ userEmail }) {
     const files = Array.from(e.target.files);
     if (files.length === 0) return;
 
+    // Limit total attachments per message
+    const MAX_ATTACHMENTS = 5;
+    if (attachments.length >= MAX_ATTACHMENTS) {
+      alert(`Maximum ${MAX_ATTACHMENTS} attachments per message`);
+      e.target.value = '';
+      return;
+    }
+
+    const remainingSlots = MAX_ATTACHMENTS - attachments.length;
+    const filesToProcess = files.slice(0, remainingSlots);
+
+    if (files.length > remainingSlots) {
+      alert(`Only adding ${remainingSlots} of ${files.length} files (max ${MAX_ATTACHMENTS} per message)`);
+    }
+
     setUploadingAttachment(true);
 
-    for (const file of files) {
+    for (const file of filesToProcess) {
       // Validate file type
       const validTypes = ['image/jpeg', 'image/png', 'image/webp', 'application/pdf', 'text/plain', 'text/markdown'];
       if (!validTypes.includes(file.type)) {

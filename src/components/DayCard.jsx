@@ -1,4 +1,8 @@
 export default function DayCard({ day }) {
+  if (!day) {
+    return null;
+  }
+
   return (
     <div style={{
       background: 'rgba(255,255,255,0.03)',

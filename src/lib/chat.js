@@ -52,18 +52,30 @@ export async function sendChatMessage(message, attachments = null) {
 }
 
 export async function fetchChatHistory(limit = 50) {
-  const { data, error } = await supabase
+  // Add timeout for slow connections
+  const timeoutPromise = new Promise((_, reject) =>
+    setTimeout(() => reject(new Error('Loading chat history timed out')), 15000)
+  );
+
+  const fetchPromise = supabase
     .from('trip_chat')
     .select('*')
     .order('created_at', { ascending: true })
     .limit(limit);
 
-  if (error) {
-    console.error('Error fetching chat history:', error);
-    throw error;
-  }
+  try {
+    const { data, error } = await Promise.race([fetchPromise, timeoutPromise]);
 
-  return data || [];
+    if (error) {
+      console.error('Error fetching chat history:', error);
+      throw error;
+    }
+
+    return data || [];
+  } catch (err) {
+    console.error('Error fetching chat history:', err);
+    throw err;
+  }
 }
 
 export async function uploadChatAttachment(file) {
