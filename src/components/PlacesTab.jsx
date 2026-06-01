@@ -11,7 +11,8 @@ function truncateEmail(email) {
 }
 
 export default function PlacesTab({ day, userEmail }) {
-  const details = DAY_DETAILS[day.n];
+  const dayNumber = day?.n;
+  const details = DAY_DETAILS[dayNumber];
 
   const [notes, setNotes] = useState([]);
   const [noteInput, setNoteInput] = useState('');
@@ -19,14 +20,18 @@ export default function PlacesTab({ day, userEmail }) {
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    fetchNotes();
+    if (!dayNumber) return;
+    const req = { active: true };
+    fetchNotes(req);
+    // Ignore an in-flight fetch's result if the day changes before it resolves
+    return () => { req.active = false; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [day.n]);
+  }, [dayNumber]);
 
   // Live updates: notes added/removed by other travelers on this day
   useRealtime(
-    `notes-day-${day.n}`,
-    { table: 'trip_notes', filter: `day_number=eq.${day.n}` },
+    `notes-day-${dayNumber}`,
+    dayNumber ? { table: 'trip_notes', filter: `day_number=eq.${dayNumber}` } : {},
     {
       onInsert: (row) =>
         setNotes(prev => (prev.some(n => n.id === row.id) ? prev : [...prev, row])),
@@ -35,13 +40,15 @@ export default function PlacesTab({ day, userEmail }) {
     }
   );
 
-  async function fetchNotes() {
+  async function fetchNotes(req = { active: true }) {
     setNotesLoading(true);
     const { data, error } = await supabase
       .from('trip_notes')
       .select('*')
-      .eq('day_number', day.n)
+      .eq('day_number', dayNumber)
       .order('created_at', { ascending: true });
+
+    if (!req.active) return; // a newer day was selected; drop this stale result
 
     if (!error && data) {
       setNotes(data);
@@ -56,7 +63,7 @@ export default function PlacesTab({ day, userEmail }) {
     const { data, error } = await supabase
       .from('trip_notes')
       .insert({
-        day_number: day.n,
+        day_number: dayNumber,
         author_email: userEmail,
         body: noteInput.trim(),
       })
@@ -287,7 +294,7 @@ export default function PlacesTab({ day, userEmail }) {
           </div>
         ) : (
           <div style={{ textAlign: 'center', padding: '2rem 1rem', color: '#4a6888', fontSize: '0.9rem' }}>
-            No notes yet for {day.date}.<br />
+            No notes yet for {day?.date}.<br />
             <span style={{ fontSize: '0.8rem' }}>Start writing above.</span>
           </div>
         )}

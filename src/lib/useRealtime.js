@@ -15,7 +15,11 @@ import { supabase } from './supabase';
  */
 export function useRealtime(channelName, { table, filter } = {}, handlers = {}) {
   const handlersRef = useRef(handlers);
-  handlersRef.current = handlers;
+  // Keep the ref current without re-subscribing; updating it in an effect (not
+  // during render) keeps event callbacks pointed at the latest handlers.
+  useEffect(() => {
+    handlersRef.current = handlers;
+  });
 
   useEffect(() => {
     if (!table || !channelName) return;
@@ -34,7 +38,13 @@ export function useRealtime(channelName, { table, filter } = {}, handlers = {}) 
       .on('postgres_changes', { event: 'DELETE', ...base }, (payload) => {
         handlersRef.current.onDelete?.(payload.old);
       })
-      .subscribe();
+      .subscribe((status) => {
+        // Surface connection problems instead of failing silently. CLOSED is
+        // expected on teardown, so only warn on the genuine error states.
+        if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
+          console.warn(`Realtime channel "${channelName}" status: ${status}`);
+        }
+      });
 
     return () => {
       supabase.removeChannel(channel);

@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { sendChatMessage, fetchChatHistory, uploadChatAttachment } from '../lib/chat';
+import { sendChatMessage, fetchChatHistory, uploadChatAttachment, mergeMessage } from '../lib/chat';
 import { useRealtime } from '../lib/useRealtime';
 
 function truncateEmail(email) {
@@ -33,23 +33,7 @@ export default function ChatTab({ userEmail }) {
 
   // Live updates: messages from other travelers (and our own, once persisted)
   useRealtime('chat', { table: 'trip_chat' }, {
-    onInsert: (row) => setMessages(prev => {
-      // Already have the persisted row (e.g. assistant msg added via message_id)
-      if (prev.some(m => m.id === row.id)) return prev;
-      // Reconcile a still-optimistic local message with its persisted version
-      const idx = prev.findIndex(m =>
-        typeof m.id === 'string' &&
-        (m.id.startsWith('temp-') || m.id.startsWith('assistant-')) &&
-        m.role === row.role &&
-        m.content === row.content
-      );
-      const merged = idx !== -1
-        ? prev.map((m, i) => (i === idx ? row : m))
-        : [...prev, row];
-      return merged
-        .slice()
-        .sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
-    }),
+    onInsert: (row) => setMessages(prev => mergeMessage(prev, row)),
   });
 
   async function loadChatHistory() {
@@ -76,9 +60,11 @@ export default function ChatTab({ userEmail }) {
     const messageText = input.trim();
     const messageAttachments = attachments.length > 0 ? attachments : null;
 
-    // Optimistic update - add user message immediately
+    // Optimistic update - add user message immediately.
+    // Random suffix avoids id collisions when two messages are sent in the
+    // same millisecond (Date.now() alone is not unique enough for a React key).
     const optimisticUserMsg = {
-      id: `temp-${Date.now()}`,
+      id: `temp-${Date.now()}-${Math.random().toString(36).slice(2)}`,
       role: 'user',
       author_email: userEmail,
       content: messageText,
@@ -94,24 +80,39 @@ export default function ChatTab({ userEmail }) {
     try {
       const result = await sendChatMessage(messageText, messageAttachments);
 
-      // Add Marco's response
+      // Add Marco's response (merge-deduped: the Realtime INSERT for this same
+      // row may have already arrived before this response resolved)
       const assistantMsg = {
-        id: result.message_id || `assistant-${Date.now()}`,
+        id: result.message_id || `assistant-${Date.now()}-${Math.random().toString(36).slice(2)}`,
         role: 'assistant',
         author_email: null,
         content: result.response,
         created_at: new Date().toISOString(),
       };
 
-      setMessages(prev => [...prev, assistantMsg]);
+      setMessages(prev => mergeMessage(prev, assistantMsg));
     } catch (err) {
       console.error('Failed to send message:', err);
-      // Update the optimistic message to show error with message and original content for retry
-      setMessages(prev => prev.map(m =>
-        m.id === optimisticUserMsg.id
-          ? { ...m, _error: true, _errorMessage: err.message }
-          : m
-      ));
+      // Flag the optimistic message for retry. A Realtime INSERT may have already
+      // reconciled it to its persisted id (the server stores the user row before
+      // calling Claude), so fall back to matching the most recent message with the
+      // same content/author rather than only the temp id.
+      setMessages(prev => {
+        let idx = prev.findIndex(m => m.id === optimisticUserMsg.id);
+        if (idx === -1) {
+          for (let i = prev.length - 1; i >= 0; i--) {
+            const m = prev[i];
+            if (m.role === 'user' && m.content === messageText && m.author_email === userEmail && !m._error) {
+              idx = i;
+              break;
+            }
+          }
+        }
+        if (idx === -1) return prev;
+        return prev.map((m, i) =>
+          i === idx ? { ...m, _error: true, _errorMessage: err.message } : m
+        );
+      });
     }
 
     setSending(false);

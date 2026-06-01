@@ -1,5 +1,7 @@
 import { supabase } from './supabase';
 
+export { mergeMessage } from './chatMerge';
+
 export async function sendChatMessage(message, attachments = null) {
   const { data: { session } } = await supabase.auth.getSession();
 

@@ -21,9 +21,11 @@ export default function PhotosTab({ day, userEmail }) {
   const dayNumber = day?.n;
 
   useEffect(() => {
-    if (dayNumber) {
-      fetchPhotos();
-    }
+    if (!dayNumber) return;
+    const req = { active: true };
+    fetchPhotos(req);
+    // Ignore an in-flight fetch's result if the day changes before it resolves
+    return () => { req.active = false; };
   }, [dayNumber]);
 
   // Live updates: photos added/identified/removed by other travelers on this day
@@ -32,7 +34,12 @@ export default function PhotosTab({ day, userEmail }) {
     dayNumber ? { table: 'trip_photos', filter: `day_number=eq.${dayNumber}` } : {},
     {
       onInsert: (row) =>
-        setPhotos(prev => (prev.some(p => p.id === row.id) ? prev : [row, ...prev])),
+        setPhotos(prev => (
+          prev.some(p => p.id === row.id)
+            ? prev
+            // Show a spinner for photos still awaiting AI identification
+            : [{ ...row, _loading: !row.identified_at }, ...prev]
+        )),
       onUpdate: (row) =>
         setPhotos(prev => prev.map(p =>
           p.id === row.id ? { ...p, ...row, _loading: false, _failed: false } : p
@@ -50,13 +57,15 @@ export default function PhotosTab({ day, userEmail }) {
     );
   }
 
-  async function fetchPhotos() {
+  async function fetchPhotos(req = { active: true }) {
     setLoading(true);
     const { data, error } = await supabase
       .from('trip_photos')
       .select('*')
       .eq('day_number', day.n)
       .order('created_at', { ascending: false });
+
+    if (!req.active) return; // a newer day was selected; drop this stale result
 
     if (!error && data) {
       // Mark photos as needing retry if they haven't been identified
