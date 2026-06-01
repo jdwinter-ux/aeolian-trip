@@ -168,7 +168,7 @@ export default function App() {
         {/* Tab content */}
         {tab === 'plan' && <PlanTab day={day} />}
         {tab === 'map' && <MapTab day={day} />}
-        {tab === 'places' && <PlacesTab day={day} />}
+        {tab === 'places' && <PlacesTab day={day} userEmail={userEmail} />}
         {tab === 'photos' && <PhotosTab day={day} userEmail={userEmail} />}
         {tab === 'chat' && <ChatTab userEmail={userEmail} />}
       </main>
