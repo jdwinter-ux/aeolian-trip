@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
+import { useRealtime } from '../lib/useRealtime';
 import { identifyPhoto } from '../lib/identify';
 import { CATEGORY_ICONS } from '../data/trip';
 
@@ -24,6 +25,22 @@ export default function PhotosTab({ day, userEmail }) {
       fetchPhotos();
     }
   }, [dayNumber]);
+
+  // Live updates: photos added/identified/removed by other travelers on this day
+  useRealtime(
+    `photos-day-${dayNumber}`,
+    dayNumber ? { table: 'trip_photos', filter: `day_number=eq.${dayNumber}` } : {},
+    {
+      onInsert: (row) =>
+        setPhotos(prev => (prev.some(p => p.id === row.id) ? prev : [row, ...prev])),
+      onUpdate: (row) =>
+        setPhotos(prev => prev.map(p =>
+          p.id === row.id ? { ...p, ...row, _loading: false, _failed: false } : p
+        )),
+      onDelete: (oldRow) =>
+        setPhotos(prev => prev.filter(p => p.id !== oldRow.id)),
+    }
+  );
 
   if (!day || !dayNumber) {
     return (

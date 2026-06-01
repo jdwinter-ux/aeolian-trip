@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { supabase } from './lib/supabase';
+import { useRealtime } from './lib/useRealtime';
 import { TRIP } from './data/trip';
 import LoginScreen from './components/LoginScreen';
 import DaySelector from './components/DaySelector';
@@ -40,6 +41,16 @@ export default function App() {
       fetchTotalPhotos();
     }
   }, [session]);
+
+  // Keep the header photo count live as photos are added/removed anywhere
+  useRealtime(
+    'header-photo-count',
+    session ? { table: 'trip_photos' } : {},
+    {
+      onInsert: () => fetchTotalPhotos(),
+      onDelete: () => fetchTotalPhotos(),
+    }
+  );
 
   async function fetchTotalPhotos() {
     const { count } = await supabase

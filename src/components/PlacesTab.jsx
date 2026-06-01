@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
+import { useRealtime } from '../lib/useRealtime';
 import { DAY_DETAILS } from '../data/dayDetails';
 
 function truncateEmail(email) {
@@ -21,6 +22,18 @@ export default function PlacesTab({ day, userEmail }) {
     fetchNotes();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [day.n]);
+
+  // Live updates: notes added/removed by other travelers on this day
+  useRealtime(
+    `notes-day-${day.n}`,
+    { table: 'trip_notes', filter: `day_number=eq.${day.n}` },
+    {
+      onInsert: (row) =>
+        setNotes(prev => (prev.some(n => n.id === row.id) ? prev : [...prev, row])),
+      onDelete: (oldRow) =>
+        setNotes(prev => prev.filter(n => n.id !== oldRow.id)),
+    }
+  );
 
   async function fetchNotes() {
     setNotesLoading(true);

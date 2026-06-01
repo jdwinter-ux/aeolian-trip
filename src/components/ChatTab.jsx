@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { sendChatMessage, fetchChatHistory, uploadChatAttachment } from '../lib/chat';
+import { useRealtime } from '../lib/useRealtime';
 
 function truncateEmail(email) {
   if (!email || typeof email !== 'string') return '';
@@ -29,6 +30,27 @@ export default function ChatTab({ userEmail }) {
   useEffect(() => {
     scrollToBottom();
   }, [messages]);
+
+  // Live updates: messages from other travelers (and our own, once persisted)
+  useRealtime('chat', { table: 'trip_chat' }, {
+    onInsert: (row) => setMessages(prev => {
+      // Already have the persisted row (e.g. assistant msg added via message_id)
+      if (prev.some(m => m.id === row.id)) return prev;
+      // Reconcile a still-optimistic local message with its persisted version
+      const idx = prev.findIndex(m =>
+        typeof m.id === 'string' &&
+        (m.id.startsWith('temp-') || m.id.startsWith('assistant-')) &&
+        m.role === row.role &&
+        m.content === row.content
+      );
+      const merged = idx !== -1
+        ? prev.map((m, i) => (i === idx ? row : m))
+        : [...prev, row];
+      return merged
+        .slice()
+        .sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
+    }),
+  });
 
   async function loadChatHistory() {
     setLoading(true);
