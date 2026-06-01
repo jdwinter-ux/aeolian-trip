@@ -10,6 +10,7 @@ import PlacesTab from './components/PlacesTab';
 import PhotosTab from './components/PhotosTab';
 import ChatTab from './components/ChatTab';
 import MapTab from './components/MapTab';
+import { THEME } from './config/theme';
 
 export default function App() {
   const [session, setSession] = useState(null);
@@ -67,11 +68,11 @@ export default function App() {
     return (
       <div style={{
         minHeight: '100vh',
-        background: 'linear-gradient(160deg, #0a1628 0%, #0d2444 40%, #0a1628 100%)',
+        background: `linear-gradient(160deg, ${THEME.bgDeep} 0%, ${THEME.bgMid} 40%, ${THEME.bgDeep} 100%)`,
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        color: '#8bacc8',
+        color: THEME.blue,
         fontFamily: "'Georgia', 'Times New Roman', serif",
       }}>
         Loading...
@@ -86,28 +87,28 @@ export default function App() {
   return (
     <div style={{
       minHeight: '100vh',
-      background: 'linear-gradient(160deg, #0a1628 0%, #0d2444 40%, #0a1628 100%)',
+      background: `linear-gradient(160deg, ${THEME.bgDeep} 0%, ${THEME.bgMid} 40%, ${THEME.bgDeep} 100%)`,
       fontFamily: "'Georgia', 'Times New Roman', serif",
-      color: '#e8dcc8',
+      color: THEME.parchment,
       position: 'relative',
       overflow: 'hidden',
     }}>
       {/* Decorative backgrounds */}
       <div style={{
         position: 'fixed', bottom: 0, left: 0, right: 0, height: '180px',
-        background: 'linear-gradient(180deg, transparent, rgba(0,80,160,0.15))',
+        background: `linear-gradient(180deg, transparent, ${THEME.rgba(THEME.base.blueDeep, 0.15)})`,
         pointerEvents: 'none', zIndex: 0,
       }} />
       <div style={{
         position: 'fixed', top: 0, right: '-100px', width: '500px', height: '500px',
-        background: 'radial-gradient(circle, rgba(255,180,50,0.06) 0%, transparent 70%)',
+        background: `radial-gradient(circle, ${THEME.rgba(THEME.base.amber, 0.06)} 0%, transparent 70%)`,
         pointerEvents: 'none', zIndex: 0,
       }} />
 
       {/* Header */}
       <header style={{
         padding: '2rem 1.5rem 1rem',
-        borderBottom: '1px solid rgba(255,200,80,0.2)',
+        borderBottom: `1px solid ${THEME.rgba(THEME.base.gold, 0.2)}`,
         position: 'relative', zIndex: 1,
       }}>
         <div style={{ maxWidth: 900, margin: '0 auto' }}>
@@ -117,33 +118,33 @@ export default function App() {
             alignItems: 'flex-start',
           }}>
             <div>
-              <div style={{ fontSize: '0.7rem', letterSpacing: '0.25em', color: '#c8a84b', textTransform: 'uppercase', marginBottom: '0.3rem' }}>
+              <div style={{ fontSize: '0.7rem', letterSpacing: '0.25em', color: THEME.gold, textTransform: 'uppercase', marginBottom: '0.3rem' }}>
                 ⚓ Voyage Journal
               </div>
-              <h1 style={{ margin: 0, fontSize: 'clamp(1.5rem, 4vw, 2.2rem)', fontWeight: 400, color: '#f5e6c8', letterSpacing: '0.02em' }}>
+              <h1 style={{ margin: 0, fontSize: 'clamp(1.5rem, 4vw, 2.2rem)', fontWeight: 400, color: THEME.cream, letterSpacing: '0.02em' }}>
                 {TRIP.title}
               </h1>
-              <div style={{ fontSize: '0.85rem', color: '#8bacc8', marginTop: '0.3rem', letterSpacing: '0.1em' }}>
+              <div style={{ fontSize: '0.85rem', color: THEME.blue, marginTop: '0.3rem', letterSpacing: '0.1em' }}>
                 {TRIP.subtitle} &nbsp;·&nbsp; {TRIP.dates}
               </div>
               {totalPhotos > 0 && (
-                <div style={{ fontSize: '0.75rem', color: '#6a8898', marginTop: '0.4rem' }}>
+                <div style={{ fontSize: '0.75rem', color: THEME.blueMuted, marginTop: '0.4rem' }}>
                   {totalPhotos} photo{totalPhotos !== 1 ? 's' : ''} logged
                 </div>
               )}
             </div>
             <div style={{ textAlign: 'right' }}>
-              <div style={{ fontSize: '0.7rem', color: '#6a8898', marginBottom: '0.3rem' }}>
+              <div style={{ fontSize: '0.7rem', color: THEME.blueMuted, marginBottom: '0.3rem' }}>
                 {userEmail}
               </div>
               <button
                 onClick={handleLogout}
                 style={{
                   background: 'none',
-                  border: '1px solid rgba(255,200,80,0.2)',
+                  border: `1px solid ${THEME.rgba(THEME.base.gold, 0.2)}`,
                   borderRadius: '6px',
                   padding: '0.3rem 0.7rem',
-                  color: '#8bacc8',
+                  color: THEME.blue,
                   fontSize: '0.7rem',
                   cursor: 'pointer',
                   fontFamily: 'inherit',
@@ -164,12 +165,12 @@ export default function App() {
         <DayCard day={day} />
 
         {/* Tabs */}
-        <div style={{ display: 'flex', gap: '0', marginBottom: '1.2rem', background: 'rgba(255,255,255,0.04)', borderRadius: '10px', padding: '4px' }}>
+        <div style={{ display: 'flex', gap: '0', marginBottom: '1.2rem', background: THEME.rgba(THEME.base.white, 0.04), borderRadius: '10px', padding: '4px' }}>
           {[['plan', '🗺️ Plan'], ['map', '🧭 Map'], ['places', '📍 Places'], ['photos', '📷 Photos'], ['chat', '💬 Chat']].map(([key, label]) => (
             <button key={key} onClick={() => setTab(key)} style={{
               flex: 1, padding: '0.6rem', border: 'none', borderRadius: '8px',
-              background: tab === key ? 'rgba(200,168,75,0.2)' : 'transparent',
-              color: tab === key ? '#c8a84b' : '#8bacc8',
+              background: tab === key ? THEME.rgba(THEME.base.goldDeep, 0.2) : 'transparent',
+              color: tab === key ? THEME.gold : THEME.blue,
               cursor: 'pointer', fontFamily: 'inherit', fontSize: '0.8rem',
               letterSpacing: '0.05em', transition: 'all 0.2s',
             }}>{label}</button>

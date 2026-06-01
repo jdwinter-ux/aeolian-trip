@@ -1,4 +1,5 @@
 import { TRIP } from '../data/trip';
+import { THEME } from '../config/theme';
 
 export default function DaySelector({ activeDay, setActiveDay }) {
   return (
@@ -8,11 +9,11 @@ export default function DaySelector({ activeDay, setActiveDay }) {
           <button key={i} onClick={() => setActiveDay(i)} style={{
             padding: '0.5rem 0.75rem',
             background: activeDay === i
-              ? 'linear-gradient(135deg, #c8a84b, #e8c87a)'
-              : 'rgba(255,255,255,0.05)',
-            border: activeDay === i ? 'none' : '1px solid rgba(255,200,80,0.2)',
+              ? `linear-gradient(135deg, ${THEME.gold}, ${THEME.goldLight})`
+              : THEME.rgba(THEME.base.white, 0.05),
+            border: activeDay === i ? 'none' : `1px solid ${THEME.rgba(THEME.base.gold, 0.2)}`,
             borderRadius: '8px',
-            color: activeDay === i ? '#0a1628' : '#a8c0d8',
+            color: activeDay === i ? THEME.bgDeep : THEME.blueLight,
             cursor: 'pointer', fontFamily: 'inherit',
             fontSize: '0.7rem', fontWeight: activeDay === i ? 700 : 400,
             whiteSpace: 'nowrap', transition: 'all 0.2s',

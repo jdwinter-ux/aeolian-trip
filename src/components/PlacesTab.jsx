@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { useRealtime } from '../lib/useRealtime';
 import { DAY_DETAILS } from '../data/dayDetails';
+import { THEME } from '../config/theme';
 
 function truncateEmail(email) {
   if (!email) return '';
@@ -94,15 +95,15 @@ export default function PlacesTab({ day, userEmail }) {
         <>
           {/* Hero section */}
           <div style={{
-            background: 'rgba(200,168,75,0.08)',
-            borderLeft: '3px solid #c8a84b',
+            background: THEME.rgba(THEME.base.goldDeep, 0.08),
+            borderLeft: `3px solid ${THEME.gold}`,
             borderRadius: '0 12px 12px 0',
             padding: '1.2rem 1.5rem',
             marginBottom: '1.5rem',
           }}>
             <div style={{
               fontSize: '0.9rem',
-              color: '#d8c8a8',
+              color: THEME.sand,
               lineHeight: 1.7,
               fontStyle: 'italic',
             }}>
@@ -116,8 +117,8 @@ export default function PlacesTab({ day, userEmail }) {
               <div
                 key={index}
                 style={{
-                  background: 'rgba(255,255,255,0.03)',
-                  border: '1px solid rgba(255,200,80,0.1)',
+                  background: THEME.rgba(THEME.base.white, 0.03),
+                  border: `1px solid ${THEME.rgba(THEME.base.gold, 0.1)}`,
                   borderRadius: '12px',
                   overflow: 'hidden',
                 }}
@@ -125,8 +126,8 @@ export default function PlacesTab({ day, userEmail }) {
                 {/* Section header */}
                 <div style={{
                   padding: '0.8rem 1rem',
-                  background: 'rgba(255,255,255,0.02)',
-                  borderBottom: '1px solid rgba(255,200,80,0.08)',
+                  background: THEME.rgba(THEME.base.white, 0.02),
+                  borderBottom: `1px solid ${THEME.rgba(THEME.base.gold, 0.08)}`,
                   display: 'flex',
                   alignItems: 'center',
                   gap: '0.6rem',
@@ -135,7 +136,7 @@ export default function PlacesTab({ day, userEmail }) {
                   <span style={{
                     fontSize: '0.9rem',
                     fontWeight: 600,
-                    color: '#f5e6c8',
+                    color: THEME.cream,
                     letterSpacing: '0.02em',
                   }}>
                     {section.title}
@@ -146,7 +147,7 @@ export default function PlacesTab({ day, userEmail }) {
                 <div style={{
                   padding: '1rem 1.2rem',
                   fontSize: '0.85rem',
-                  color: '#b8c8d8',
+                  color: THEME.blueSky,
                   lineHeight: 1.7,
                   whiteSpace: 'pre-wrap',
                 }}>
@@ -161,14 +162,14 @@ export default function PlacesTab({ day, userEmail }) {
             <div style={{
               marginTop: '1.5rem',
               padding: '1rem 1.2rem',
-              background: 'rgba(139,172,200,0.08)',
-              border: '1px solid rgba(139,172,200,0.15)',
+              background: THEME.rgba(THEME.base.blueGray, 0.08),
+              border: `1px solid ${THEME.rgba(THEME.base.blueGray, 0.15)}`,
               borderRadius: '12px',
             }}>
               <div style={{
                 fontSize: '0.8rem',
                 fontWeight: 600,
-                color: '#8bacc8',
+                color: THEME.blue,
                 marginBottom: '0.6rem',
                 letterSpacing: '0.05em',
               }}>
@@ -178,7 +179,7 @@ export default function PlacesTab({ day, userEmail }) {
                 margin: 0,
                 paddingLeft: '1.2rem',
                 fontSize: '0.8rem',
-                color: '#9ab8c8',
+                color: THEME.blueSoft,
                 lineHeight: 1.8,
               }}>
                 {details.tips.map((tip, i) => (
@@ -189,17 +190,17 @@ export default function PlacesTab({ day, userEmail }) {
           )}
         </>
       ) : (
-        <div style={{ textAlign: 'center', padding: '3rem 1rem', color: '#6a8898' }}>
+        <div style={{ textAlign: 'center', padding: '3rem 1rem', color: THEME.blueMuted }}>
           No information available for this day.
         </div>
       )}
 
       {/* Shared notes */}
-      <div style={{ marginTop: '2rem', paddingTop: '1.5rem', borderTop: '1px solid rgba(255,200,80,0.12)' }}>
+      <div style={{ marginTop: '2rem', paddingTop: '1.5rem', borderTop: `1px solid ${THEME.rgba(THEME.base.gold, 0.12)}` }}>
         <div style={{
           fontSize: '0.8rem',
           fontWeight: 600,
-          color: '#c8a84b',
+          color: THEME.gold,
           marginBottom: '1rem',
           letterSpacing: '0.08em',
           textTransform: 'uppercase',
@@ -215,10 +216,10 @@ export default function PlacesTab({ day, userEmail }) {
             rows={3}
             style={{
               width: '100%', boxSizing: 'border-box',
-              background: 'rgba(255,255,255,0.05)',
-              border: '1px solid rgba(255,200,80,0.2)',
+              background: THEME.rgba(THEME.base.white, 0.05),
+              border: `1px solid ${THEME.rgba(THEME.base.gold, 0.2)}`,
               borderRadius: '10px', padding: '0.9rem 1rem',
-              color: '#e8dcc8', fontFamily: 'inherit', fontSize: '0.9rem',
+              color: THEME.parchment, fontFamily: 'inherit', fontSize: '0.9rem',
               resize: 'none', outline: 'none', lineHeight: 1.6,
             }}
           />
@@ -227,9 +228,9 @@ export default function PlacesTab({ day, userEmail }) {
             disabled={saving || !noteInput.trim()}
             style={{
               marginTop: '0.6rem', padding: '0.6rem 1.5rem',
-              background: saving ? 'rgba(200,168,75,0.3)' : 'linear-gradient(135deg, #c8a84b, #e8c87a)',
+              background: saving ? THEME.rgba(THEME.base.goldDeep, 0.3) : `linear-gradient(135deg, ${THEME.gold}, ${THEME.goldLight})`,
               border: 'none', borderRadius: '8px',
-              color: '#0a1628', fontWeight: 700, fontFamily: 'inherit',
+              color: THEME.bgDeep, fontWeight: 700, fontFamily: 'inherit',
               fontSize: '0.85rem', cursor: saving ? 'not-allowed' : 'pointer',
               letterSpacing: '0.05em',
               opacity: !noteInput.trim() ? 0.5 : 1,
@@ -240,15 +241,15 @@ export default function PlacesTab({ day, userEmail }) {
         </div>
 
         {notesLoading ? (
-          <div style={{ textAlign: 'center', padding: '2rem 1rem', color: '#6a8898', fontSize: '0.9rem' }}>
+          <div style={{ textAlign: 'center', padding: '2rem 1rem', color: THEME.blueMuted, fontSize: '0.9rem' }}>
             Loading notes...
           </div>
         ) : notes.length > 0 ? (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.8rem' }}>
             {notes.map(note => (
               <div key={note.id} style={{
-                background: 'rgba(255,255,255,0.03)',
-                border: '1px solid rgba(255,200,80,0.1)',
+                background: THEME.rgba(THEME.base.white, 0.03),
+                border: `1px solid ${THEME.rgba(THEME.base.gold, 0.1)}`,
                 borderRadius: '10px', padding: '1rem 1.2rem',
               }}>
                 <div style={{
@@ -257,7 +258,7 @@ export default function PlacesTab({ day, userEmail }) {
                   alignItems: 'center',
                   marginBottom: '0.5rem',
                 }}>
-                  <div style={{ fontSize: '0.7rem', color: '#c8a84b', letterSpacing: '0.05em' }}>
+                  <div style={{ fontSize: '0.7rem', color: THEME.gold, letterSpacing: '0.05em' }}>
                     {truncateEmail(note.author_email)}
                   </div>
                   {note.author_email === userEmail && (
@@ -266,7 +267,7 @@ export default function PlacesTab({ day, userEmail }) {
                       style={{
                         background: 'none',
                         border: 'none',
-                        color: '#6a8898',
+                        color: THEME.blueMuted,
                         cursor: 'pointer',
                         fontSize: '0.75rem',
                         padding: '0.2rem 0.4rem',
@@ -278,13 +279,13 @@ export default function PlacesTab({ day, userEmail }) {
                 </div>
                 <div style={{
                   whiteSpace: 'pre-wrap', lineHeight: 1.8,
-                  fontSize: '0.9rem', color: '#d8c8a8',
+                  fontSize: '0.9rem', color: THEME.sand,
                 }}>
                   {note.body}
                 </div>
                 <div style={{
                   fontSize: '0.65rem',
-                  color: '#4a6888',
+                  color: THEME.blueDim,
                   marginTop: '0.6rem',
                 }}>
                   {new Date(note.created_at).toLocaleString()}
@@ -293,7 +294,7 @@ export default function PlacesTab({ day, userEmail }) {
             ))}
           </div>
         ) : (
-          <div style={{ textAlign: 'center', padding: '2rem 1rem', color: '#4a6888', fontSize: '0.9rem' }}>
+          <div style={{ textAlign: 'center', padding: '2rem 1rem', color: THEME.blueDim, fontSize: '0.9rem' }}>
             No notes yet for {day?.date}.<br />
             <span style={{ fontSize: '0.8rem' }}>Start writing above.</span>
           </div>

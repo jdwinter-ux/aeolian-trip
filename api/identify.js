@@ -1,6 +1,7 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { createClient } from '@supabase/supabase-js';
 import sharp from 'sharp';
+import { DAY_LOCATIONS } from '../src/data/locations.js';
 
 // Try to import exifr - it may not work in all serverless environments
 let exifr = null;
@@ -9,50 +10,6 @@ try {
 } catch (e) {
   console.log('exifr not available, GPS extraction disabled');
 }
-
-// Detailed location knowledge per day for better recognition
-const DAY_LOCATIONS = {
-  1: {
-    islands: ['Lipari'],
-    landmarks: ['Marina Lunga port', 'Canneto Bay', 'pumice beach', 'obsidian beach'],
-    activities: ['boarding yacht', 'welcome dinner'],
-  },
-  2: {
-    islands: ['Panarea', 'Stromboli'],
-    landmarks: ['Punta Milazzese', 'Bronze Age village', 'Cala Junco cove', 'San Pietro village', 'Lisca Bianca'],
-    activities: ['hiking', 'swimming', 'watching volcano'],
-  },
-  3: {
-    islands: ['Stromboli', 'Salina'],
-    landmarks: ['Sciara del Fuoco', 'Stromboli volcano', 'Malfa village', 'Signum restaurant'],
-    activities: ['volcano hike', 'Michelin dinner'],
-  },
-  4: {
-    islands: ['Salina'],
-    landmarks: ['Monte Fossa delle Felci', 'Lingua salt lake', 'Da Alfredo', 'Pollara cove', 'Il Postino filming location'],
-    activities: ['granita tasting', 'wine tasting', 'Malvasia', 'capers'],
-  },
-  5: {
-    islands: ['Filicudi'],
-    landmarks: ['La Canna rock spire', 'Zucco Grande abandoned village', 'Grotta del Bue Marino', 'Pecorini a Mare'],
-    activities: ['hiking', 'deep water swimming', 'sea cave visit'],
-  },
-  6: {
-    islands: ['Lipari'],
-    landmarks: ['Quattrocchi viewpoint', 'Cave di Caolino quarries', 'Valle Muria black sand beach'],
-    activities: ['biking', 'hiking', 'cannoli tableside'],
-  },
-  7: {
-    islands: ['Vulcano'],
-    landmarks: ['Gran Cratere', 'Vulcanello peninsula', 'Gelso beach', 'Il Cappero restaurant', 'Therasia Resort', 'Faraglioni sea stacks'],
-    activities: ['crater rim hike', 'fumaroles', 'Michelin dinner'],
-  },
-  8: {
-    islands: ['Vulcano', 'Lipari', 'Milazzo'],
-    landmarks: ['Marina Lunga', 'Milazzo port'],
-    activities: ['departure', 'disembarkation'],
-  },
-};
 
 export default async function handler(req, res) {
   // Only allow POST

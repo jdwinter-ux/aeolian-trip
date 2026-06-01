@@ -3,6 +3,7 @@ import { supabase } from '../lib/supabase';
 import { useRealtime } from '../lib/useRealtime';
 import { identifyPhoto } from '../lib/identify';
 import { CATEGORY_ICONS } from '../data/trip';
+import { THEME } from '../config/theme';
 
 function truncateEmail(email) {
   if (!email) return '';
@@ -51,7 +52,7 @@ export default function PhotosTab({ day, userEmail }) {
 
   if (!day || !dayNumber) {
     return (
-      <div style={{ textAlign: 'center', padding: '3rem 1rem', color: '#6a8898' }}>
+      <div style={{ textAlign: 'center', padding: '3rem 1rem', color: THEME.blueMuted }}>
         No day selected.
       </div>
     );
@@ -215,15 +216,15 @@ export default function PhotosTab({ day, userEmail }) {
   return (
     <div>
       <div style={{
-        border: '2px dashed rgba(200,168,75,0.3)',
+        border: `2px dashed ${THEME.rgba(THEME.base.goldDeep, 0.3)}`,
         borderRadius: '12px', padding: '2rem', textAlign: 'center',
-        background: 'rgba(200,168,75,0.03)', marginBottom: '1.5rem',
+        background: THEME.rgba(THEME.base.goldDeep, 0.03), marginBottom: '1.5rem',
       }}>
         <div style={{ fontSize: '2rem', marginBottom: '0.5rem' }}>📷</div>
-        <div style={{ color: '#c8a84b', fontSize: '0.9rem', fontWeight: 600, marginBottom: '0.3rem' }}>
+        <div style={{ color: THEME.gold, fontSize: '0.9rem', fontWeight: 600, marginBottom: '0.3rem' }}>
           {uploading ? '🔍 Processing photos...' : 'Add Photos'}
         </div>
-        <div style={{ color: '#6a8898', fontSize: '0.75rem', marginBottom: '1rem' }}>
+        <div style={{ color: THEME.blueMuted, fontSize: '0.75rem', marginBottom: '1rem' }}>
           Claude will identify landmarks, food, and places
         </div>
         <input
@@ -238,7 +239,7 @@ export default function PhotosTab({ day, userEmail }) {
           }}
           style={{
             display: 'block', margin: '0 auto',
-            color: '#c8a84b', fontFamily: 'inherit', fontSize: '0.85rem',
+            color: THEME.gold, fontFamily: 'inherit', fontSize: '0.85rem',
             cursor: uploading ? 'not-allowed' : 'pointer',
             opacity: uploading ? 0.5 : 1,
           }}
@@ -247,24 +248,24 @@ export default function PhotosTab({ day, userEmail }) {
 
       {errorMsg && (
         <div style={{
-          background: 'rgba(220,80,60,0.12)',
-          border: '1px solid rgba(220,80,60,0.3)',
+          background: THEME.rgba(THEME.base.red, 0.12),
+          border: `1px solid ${THEME.rgba(THEME.base.red, 0.3)}`,
           borderRadius: '10px', padding: '0.8rem 1rem',
-          color: '#f0a090', fontSize: '0.8rem',
+          color: THEME.error, fontSize: '0.8rem',
           marginBottom: '1rem', lineHeight: 1.5,
         }}>⚠️ {errorMsg}</div>
       )}
 
       {loading ? (
-        <div style={{ textAlign: 'center', padding: '3rem 1rem', color: '#6a8898', fontSize: '0.9rem' }}>
+        <div style={{ textAlign: 'center', padding: '3rem 1rem', color: THEME.blueMuted, fontSize: '0.9rem' }}>
           Loading photos...
         </div>
       ) : photos.length > 0 ? (
         <div style={{ display: 'grid', gap: '1rem', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))' }}>
           {photos.map(photo => (
             <div key={photo.id} style={{
-              background: 'rgba(255,255,255,0.04)',
-              border: '1px solid rgba(255,200,80,0.1)',
+              background: THEME.rgba(THEME.base.white, 0.04),
+              border: `1px solid ${THEME.rgba(THEME.base.gold, 0.1)}`,
               borderRadius: '12px', overflow: 'hidden',
               cursor: photo._failed ? 'pointer' : 'default',
             }}
@@ -284,7 +285,7 @@ export default function PhotosTab({ day, userEmail }) {
                   alignItems: 'flex-start',
                   marginBottom: '0.3rem'
                 }}>
-                  <div style={{ fontSize: '0.65rem', color: '#6a8898' }}>
+                  <div style={{ fontSize: '0.65rem', color: THEME.blueMuted }}>
                     {truncateEmail(photo.author_email)}
                   </div>
                   {photo.author_email === userEmail && !photo._loading && (
@@ -293,7 +294,7 @@ export default function PhotosTab({ day, userEmail }) {
                       style={{
                         background: 'none',
                         border: 'none',
-                        color: '#6a8898',
+                        color: THEME.blueMuted,
                         cursor: 'pointer',
                         fontSize: '0.75rem',
                         padding: '0.1rem 0.3rem',
@@ -304,15 +305,15 @@ export default function PhotosTab({ day, userEmail }) {
                   )}
                 </div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.4rem' }}>
-                  <div style={{ fontSize: '0.95rem', color: '#f5e6c8', fontWeight: 600 }}>
+                  <div style={{ fontSize: '0.95rem', color: THEME.cream, fontWeight: 600 }}>
                     {photo._loading ? <span style={{ opacity: 0.6 }}>✨ Identifying...</span> : photo.title}
                   </div>
                   <div style={{ fontSize: '1.2rem' }}>{photo._loading ? '⏳' : (CATEGORY_ICONS[photo.category] || '📸')}</div>
                 </div>
-                <div style={{ fontSize: '0.75rem', color: '#c8a84b', marginBottom: '0.5rem' }}>
+                <div style={{ fontSize: '0.75rem', color: THEME.gold, marginBottom: '0.5rem' }}>
                   📍 {photo.location}
                 </div>
-                <div style={{ fontSize: '0.8rem', color: '#8bacc8', lineHeight: 1.5 }}>
+                <div style={{ fontSize: '0.8rem', color: THEME.blue, lineHeight: 1.5 }}>
                   {photo.description}
                 </div>
                 {photo.tags?.length > 0 && (
@@ -320,10 +321,10 @@ export default function PhotosTab({ day, userEmail }) {
                     {photo.tags.map(tag => (
                       <span key={tag} style={{
                         padding: '0.2rem 0.5rem',
-                        background: 'rgba(200,168,75,0.1)',
-                        border: '1px solid rgba(200,168,75,0.2)',
+                        background: THEME.rgba(THEME.base.goldDeep, 0.1),
+                        border: `1px solid ${THEME.rgba(THEME.base.goldDeep, 0.2)}`,
                         borderRadius: '20px', fontSize: '0.65rem',
-                        color: '#a89860', letterSpacing: '0.05em',
+                        color: THEME.goldMuted, letterSpacing: '0.05em',
                       }}>{tag}</span>
                     ))}
                   </div>
@@ -333,7 +334,7 @@ export default function PhotosTab({ day, userEmail }) {
           ))}
         </div>
       ) : (
-        <div style={{ textAlign: 'center', padding: '3rem 1rem', color: '#4a6888', fontSize: '0.9rem' }}>
+        <div style={{ textAlign: 'center', padding: '3rem 1rem', color: THEME.blueDim, fontSize: '0.9rem' }}>
           No photos for {day.date} yet.<br />
           <span style={{ fontSize: '0.8rem' }}>Upload above to auto-identify.</span>
         </div>

@@ -3,6 +3,7 @@ export const TRIP = {
   title: "Aeolian Islands",
   subtitle: "Aboard M/Y TWINS",
   dates: "June 12–19, 2025",
+  startDate: "2025-06-12", // ISO; used server-side to compute the current trip day
   days: [
     {
       n: 1, date: "Jun 12", weekday: "Thu",

@@ -2,6 +2,13 @@ import { useEffect } from 'react';
 import { MapContainer, TileLayer, Marker, Polyline, Popup, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
+import {
+  MAP_LOCATIONS as LOCATIONS,
+  DAILY_ROUTES,
+  FULL_ROUTE,
+  MAP_CENTER,
+} from '../data/locations';
+import { THEME } from '../config/theme';
 
 // Fix for default marker icons in React-Leaflet
 delete L.Icon.Default.prototype._getIconUrl;
@@ -10,45 +17,6 @@ L.Icon.Default.mergeOptions({
   iconUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-icon.png',
   shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-shadow.png',
 });
-
-// Island/stop coordinates
-const LOCATIONS = {
-  milazzo: { lat: 38.2242, lng: 15.2405, name: 'Milazzo', type: 'port' },
-  lipari: { lat: 38.4674, lng: 14.9540, name: 'Lipari', type: 'island' },
-  canneto: { lat: 38.4850, lng: 14.9650, name: 'Canneto Bay', type: 'anchorage' },
-  panarea: { lat: 38.6367, lng: 15.0700, name: 'Panarea', type: 'island' },
-  stromboli: { lat: 38.7890, lng: 15.2130, name: 'Stromboli', type: 'island' },
-  salina: { lat: 38.5600, lng: 14.8680, name: 'Salina', type: 'island' },
-  filicudi: { lat: 38.5620, lng: 14.5700, name: 'Filicudi', type: 'island' },
-  vulcano: { lat: 38.4040, lng: 14.9620, name: 'Vulcano', type: 'island' },
-};
-
-// Route for each day
-const DAILY_ROUTES = {
-  1: ['milazzo', 'lipari', 'canneto'],
-  2: ['canneto', 'panarea', 'stromboli'],
-  3: ['stromboli', 'salina'],
-  4: ['salina'], // Stay at Salina
-  5: ['salina', 'filicudi'],
-  6: ['filicudi', 'lipari'],
-  7: ['lipari', 'vulcano'],
-  8: ['vulcano', 'lipari', 'milazzo'],
-};
-
-// Full route coordinates for the polyline
-const FULL_ROUTE = [
-  LOCATIONS.milazzo,
-  LOCATIONS.lipari,
-  LOCATIONS.canneto,
-  LOCATIONS.panarea,
-  LOCATIONS.stromboli,
-  LOCATIONS.salina,
-  LOCATIONS.filicudi,
-  LOCATIONS.lipari,
-  LOCATIONS.vulcano,
-  LOCATIONS.lipari,
-  LOCATIONS.milazzo,
-];
 
 // Custom marker icons
 function createIcon(color, isActive) {
@@ -62,7 +30,7 @@ function createIcon(color, isActive) {
       background: ${color};
       border: ${border}px solid white;
       border-radius: 50%;
-      box-shadow: 0 2px 6px rgba(0,0,0,0.4);
+      box-shadow: 0 2px 6px ${THEME.rgba(THEME.base.black, 0.4)};
     "></div>`,
     iconSize: [size + border * 2, size + border * 2],
     iconAnchor: [(size + border * 2) / 2, (size + border * 2) / 2],
@@ -87,7 +55,7 @@ export default function MapTab({ day }) {
   // Handle case where day is undefined
   if (!day || !day.n) {
     return (
-      <div style={{ textAlign: 'center', padding: '3rem 1rem', color: '#6a8898' }}>
+      <div style={{ textAlign: 'center', padding: '3rem 1rem', color: THEME.blueMuted }}>
         No day selected.
       </div>
     );
@@ -97,8 +65,8 @@ export default function MapTab({ day }) {
   const todayStops = DAILY_ROUTES[dayNumber] || [];
   const todayLocations = todayStops.map(key => LOCATIONS[key]);
 
-  // Center on Aeolian Islands
-  const center = [38.55, 14.95];
+  // Center on the trip's island group
+  const center = MAP_CENTER;
 
   // Get route up to current day
   const routeUpToToday = [];
@@ -121,7 +89,7 @@ export default function MapTab({ day }) {
         height: '400px',
         borderRadius: '12px',
         overflow: 'hidden',
-        border: '1px solid rgba(255,200,80,0.2)',
+        border: `1px solid ${THEME.rgba(THEME.base.gold, 0.2)}`,
       }}>
         <MapContainer
           center={center}
@@ -140,7 +108,7 @@ export default function MapTab({ day }) {
           {/* Full route - faded */}
           <Polyline
             positions={FULL_ROUTE.map(loc => [loc.lat, loc.lng])}
-            color="rgba(200,168,75,0.2)"
+            color={THEME.rgba(THEME.base.goldDeep, 0.2)}
             weight={2}
             dashArray="5,10"
           />
@@ -148,7 +116,7 @@ export default function MapTab({ day }) {
           {/* Route completed so far */}
           <Polyline
             positions={routeUpToToday.map(loc => [loc.lat, loc.lng])}
-            color="#c8a84b"
+            color={THEME.gold}
             weight={3}
           />
 
@@ -156,7 +124,7 @@ export default function MapTab({ day }) {
           {todayLocations.length > 1 && (
             <Polyline
               positions={todayLocations.map(loc => [loc.lat, loc.lng])}
-              color="#e8c87a"
+              color={THEME.goldLight}
               weight={4}
             />
           )}
@@ -166,9 +134,9 @@ export default function MapTab({ day }) {
             const isToday = todayStops.includes(key);
             const isPast = routeUpToToday.some(r => r.name === loc.name);
 
-            let color = 'rgba(139,172,200,0.6)'; // Future - gray
-            if (isToday) color = '#e8c87a'; // Today - gold
-            else if (isPast) color = '#c8a84b'; // Past - darker gold
+            let color = THEME.rgba(THEME.base.blueGray, 0.6); // Future - gray
+            if (isToday) color = THEME.goldLight; // Today - gold
+            else if (isPast) color = THEME.gold; // Past - darker gold
 
             return (
               <Marker
@@ -179,7 +147,7 @@ export default function MapTab({ day }) {
                 <Popup>
                   <div style={{ fontFamily: 'Georgia, serif', textAlign: 'center' }}>
                     <strong>{loc.name}</strong>
-                    {isToday && <div style={{ fontSize: '0.8em', color: '#666' }}>Today</div>}
+                    {isToday && <div style={{ fontSize: '0.8em', color: THEME.gray }}>Today</div>}
                   </div>
                 </Popup>
               </Marker>
@@ -194,25 +162,25 @@ export default function MapTab({ day }) {
         flexWrap: 'wrap',
         gap: '1rem',
         padding: '0.8rem 1rem',
-        background: 'rgba(255,255,255,0.03)',
+        background: THEME.rgba(THEME.base.white, 0.03),
         borderRadius: '10px',
         fontSize: '0.75rem',
-        color: '#8bacc8',
+        color: THEME.blue,
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-          <div style={{ width: 12, height: 12, background: '#e8c87a', borderRadius: '50%', border: '2px solid white' }} />
+          <div style={{ width: 12, height: 12, background: THEME.goldLight, borderRadius: '50%', border: '2px solid white' }} />
           <span>Today</span>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-          <div style={{ width: 10, height: 10, background: '#c8a84b', borderRadius: '50%', border: '2px solid white' }} />
+          <div style={{ width: 10, height: 10, background: THEME.gold, borderRadius: '50%', border: '2px solid white' }} />
           <span>Visited</span>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-          <div style={{ width: 10, height: 10, background: 'rgba(139,172,200,0.6)', borderRadius: '50%', border: '2px solid white' }} />
+          <div style={{ width: 10, height: 10, background: THEME.rgba(THEME.base.blueGray, 0.6), borderRadius: '50%', border: '2px solid white' }} />
           <span>Upcoming</span>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-          <div style={{ width: 20, height: 3, background: '#c8a84b' }} />
+          <div style={{ width: 20, height: 3, background: THEME.gold }} />
           <span>Route taken</span>
         </div>
       </div>
@@ -220,17 +188,17 @@ export default function MapTab({ day }) {
       {/* Today's stops */}
       <div style={{
         padding: '1rem',
-        background: 'rgba(200,168,75,0.08)',
+        background: THEME.rgba(THEME.base.goldDeep, 0.08),
         borderRadius: '10px',
-        borderLeft: '3px solid #c8a84b',
+        borderLeft: `3px solid ${THEME.gold}`,
       }}>
-        <div style={{ fontSize: '0.7rem', color: '#c8a84b', letterSpacing: '0.1em', marginBottom: '0.5rem' }}>
+        <div style={{ fontSize: '0.7rem', color: THEME.gold, letterSpacing: '0.1em', marginBottom: '0.5rem' }}>
           DAY {dayNumber} ROUTE
         </div>
-        <div style={{ fontSize: '0.95rem', color: '#f5e6c8' }}>
+        <div style={{ fontSize: '0.95rem', color: THEME.cream }}>
           {todayLocations.map((loc, i) => (
             <span key={loc.name}>
-              {i > 0 && <span style={{ color: '#6a8898' }}> → </span>}
+              {i > 0 && <span style={{ color: THEME.blueMuted }}> → </span>}
               {loc.name}
             </span>
           ))}
@@ -254,11 +222,11 @@ export default function MapTab({ day }) {
                 key={key}
                 style={{
                   padding: '0.6rem 0.8rem',
-                  background: isToday ? 'rgba(200,168,75,0.15)' : 'rgba(255,255,255,0.03)',
-                  border: `1px solid ${isToday ? 'rgba(200,168,75,0.3)' : 'rgba(255,200,80,0.1)'}`,
+                  background: isToday ? THEME.rgba(THEME.base.goldDeep, 0.15) : THEME.rgba(THEME.base.white, 0.03),
+                  border: `1px solid ${isToday ? THEME.rgba(THEME.base.goldDeep, 0.3) : THEME.rgba(THEME.base.gold, 0.1)}`,
                   borderRadius: '8px',
                   fontSize: '0.8rem',
-                  color: isToday ? '#e8c87a' : isPast ? '#c8a84b' : '#6a8898',
+                  color: isToday ? THEME.goldLight : isPast ? THEME.gold : THEME.blueMuted,
                 }}
               >
                 {isToday && '📍 '}{loc.name}

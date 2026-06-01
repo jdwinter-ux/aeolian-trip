@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { sendChatMessage, fetchChatHistory, uploadChatAttachment, mergeMessage } from '../lib/chat';
 import { useRealtime } from '../lib/useRealtime';
+import { THEME } from '../config/theme';
 
 function truncateEmail(email) {
   if (!email || typeof email !== 'string') return '';
@@ -192,16 +193,16 @@ export default function ChatTab({ userEmail }) {
       {/* Header */}
       <div style={{
         padding: '0.8rem 1rem',
-        borderBottom: '1px solid rgba(255,200,80,0.15)',
+        borderBottom: `1px solid ${THEME.rgba(THEME.base.gold, 0.15)}`,
         marginBottom: '0.5rem',
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
           <span style={{ fontSize: '1.3rem' }}>🇮🇹</span>
           <div>
-            <div style={{ fontSize: '0.95rem', color: '#f5e6c8', fontWeight: 600 }}>
+            <div style={{ fontSize: '0.95rem', color: THEME.cream, fontWeight: 600 }}>
               Chat with Marco
             </div>
-            <div style={{ fontSize: '0.7rem', color: '#6a8898' }}>
+            <div style={{ fontSize: '0.7rem', color: THEME.blueMuted }}>
               Your local Aeolian Islands guide
             </div>
           </div>
@@ -218,22 +219,22 @@ export default function ChatTab({ userEmail }) {
         gap: '0.8rem',
       }}>
         {loading ? (
-          <div style={{ textAlign: 'center', padding: '3rem 1rem', color: '#6a8898', fontSize: '0.9rem' }}>
+          <div style={{ textAlign: 'center', padding: '3rem 1rem', color: THEME.blueMuted, fontSize: '0.9rem' }}>
             Loading conversation...
           </div>
         ) : loadError ? (
           <div style={{ textAlign: 'center', padding: '3rem 1rem' }}>
-            <div style={{ color: '#e88070', fontSize: '0.9rem', marginBottom: '0.8rem' }}>
+            <div style={{ color: THEME.errorStrong, fontSize: '0.9rem', marginBottom: '0.8rem' }}>
               {loadError}
             </div>
             <button
               onClick={loadChatHistory}
               style={{
                 padding: '0.5rem 1rem',
-                background: 'rgba(200,168,75,0.2)',
-                border: '1px solid rgba(200,168,75,0.4)',
+                background: THEME.rgba(THEME.base.goldDeep, 0.2),
+                border: `1px solid ${THEME.rgba(THEME.base.goldDeep, 0.4)}`,
                 borderRadius: '6px',
-                color: '#c8a84b',
+                color: THEME.gold,
                 fontSize: '0.85rem',
                 cursor: 'pointer',
                 fontFamily: 'inherit',
@@ -244,21 +245,21 @@ export default function ChatTab({ userEmail }) {
           </div>
         ) : messages.length === 0 ? (
           <div style={{
-            background: 'rgba(200,168,75,0.08)',
-            borderLeft: '3px solid #c8a84b',
+            background: THEME.rgba(THEME.base.goldDeep, 0.08),
+            borderLeft: `3px solid ${THEME.gold}`,
             borderRadius: '0 10px 10px 0',
             padding: '1rem 1.2rem',
             maxWidth: '85%',
           }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', marginBottom: '0.5rem' }}>
               <span style={{ fontSize: '1rem' }}>🇮🇹</span>
-              <span style={{ fontSize: '0.75rem', color: '#c8a84b', fontWeight: 600 }}>Marco</span>
+              <span style={{ fontSize: '0.75rem', color: THEME.gold, fontWeight: 600 }}>Marco</span>
             </div>
-            <div style={{ fontSize: '0.9rem', color: '#d8c8a8', lineHeight: 1.6 }}>
+            <div style={{ fontSize: '0.9rem', color: THEME.sand, lineHeight: 1.6 }}>
               Benvenuti! I'm Marco, your local guide to the beautiful Aeolian Islands.
               I know every hidden cove, the best granita spots, and which trattorias the locals love.
               Ask me anything about your trip — I'm here to help make it unforgettable!
-              <em style={{ color: '#8bacc8' }}> Che bella avventura vi aspetta!</em> (What a beautiful adventure awaits you!)
+              <em style={{ color: THEME.blue }}> Che bella avventura vi aspetta!</em> (What a beautiful adventure awaits you!)
             </div>
           </div>
         ) : (
@@ -273,19 +274,19 @@ export default function ChatTab({ userEmail }) {
               {msg.role === 'assistant' ? (
                 // Marco's message
                 <div style={{
-                  background: 'rgba(200,168,75,0.08)',
-                  borderLeft: '3px solid #c8a84b',
+                  background: THEME.rgba(THEME.base.goldDeep, 0.08),
+                  borderLeft: `3px solid ${THEME.gold}`,
                   borderRadius: '0 10px 10px 0',
                   padding: '0.8rem 1rem',
                   maxWidth: '85%',
                 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', marginBottom: '0.4rem' }}>
                     <span style={{ fontSize: '0.9rem' }}>🇮🇹</span>
-                    <span style={{ fontSize: '0.7rem', color: '#c8a84b', fontWeight: 600 }}>Marco</span>
+                    <span style={{ fontSize: '0.7rem', color: THEME.gold, fontWeight: 600 }}>Marco</span>
                   </div>
                   <div style={{
                     fontSize: '0.85rem',
-                    color: '#d8c8a8',
+                    color: THEME.sand,
                     lineHeight: 1.6,
                     whiteSpace: 'pre-wrap',
                   }}>
@@ -295,24 +296,24 @@ export default function ChatTab({ userEmail }) {
               ) : (
                 // User message
                 <div style={{
-                  background: msg._error ? 'rgba(220,80,60,0.15)' : 'rgba(139,172,200,0.12)',
+                  background: msg._error ? THEME.rgba(THEME.base.red, 0.15) : THEME.rgba(THEME.base.blueGray, 0.12),
                   borderRadius: '10px 10px 0 10px',
                   padding: '0.8rem 1rem',
                   maxWidth: '85%',
                 }}>
-                  <div style={{ fontSize: '0.65rem', color: '#6a8898', marginBottom: '0.3rem' }}>
+                  <div style={{ fontSize: '0.65rem', color: THEME.blueMuted, marginBottom: '0.3rem' }}>
                     {truncateEmail(msg.author_email)}
                   </div>
                   <div style={{
                     fontSize: '0.85rem',
-                    color: msg._error ? '#f0a090' : '#c8d8e8',
+                    color: msg._error ? THEME.error : THEME.bluePale,
                     lineHeight: 1.6,
                     whiteSpace: 'pre-wrap',
                   }}>
                     {msg.content}
                     {msg._error && (
                       <div style={{ marginTop: '0.4rem' }}>
-                        <span style={{ display: 'block', fontSize: '0.7rem', color: '#e88070' }}>
+                        <span style={{ display: 'block', fontSize: '0.7rem', color: THEME.errorStrong }}>
                           {msg._errorMessage || 'Failed to send'}
                         </span>
                         <button
@@ -320,10 +321,10 @@ export default function ChatTab({ userEmail }) {
                           style={{
                             marginTop: '0.3rem',
                             padding: '0.2rem 0.5rem',
-                            background: 'rgba(220,80,60,0.2)',
-                            border: '1px solid rgba(220,80,60,0.4)',
+                            background: THEME.rgba(THEME.base.red, 0.2),
+                            border: `1px solid ${THEME.rgba(THEME.base.red, 0.4)}`,
                             borderRadius: '4px',
-                            color: '#f0a090',
+                            color: THEME.error,
                             fontSize: '0.7rem',
                             cursor: 'pointer',
                             fontFamily: 'inherit',
@@ -339,10 +340,10 @@ export default function ChatTab({ userEmail }) {
                       {msg.attachments.map((att, i) => (
                         <span key={i} style={{
                           padding: '0.2rem 0.5rem',
-                          background: 'rgba(255,255,255,0.1)',
+                          background: THEME.rgba(THEME.base.white, 0.1),
                           borderRadius: '4px',
                           fontSize: '0.65rem',
-                          color: '#8bacc8',
+                          color: THEME.blue,
                         }}>
                           {att.type.startsWith('image/') ? '🖼️' : '📄'} {att.name}
                         </span>
@@ -358,16 +359,16 @@ export default function ChatTab({ userEmail }) {
         {/* Typing indicator */}
         {sending && (
           <div style={{
-            background: 'rgba(200,168,75,0.08)',
-            borderLeft: '3px solid #c8a84b',
+            background: THEME.rgba(THEME.base.goldDeep, 0.08),
+            borderLeft: `3px solid ${THEME.gold}`,
             borderRadius: '0 10px 10px 0',
             padding: '0.8rem 1rem',
             maxWidth: '85%',
           }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
               <span style={{ fontSize: '0.9rem' }}>🇮🇹</span>
-              <span style={{ fontSize: '0.7rem', color: '#c8a84b', fontWeight: 600 }}>Marco</span>
-              <span style={{ fontSize: '0.75rem', color: '#6a8898', marginLeft: '0.3rem' }}>
+              <span style={{ fontSize: '0.7rem', color: THEME.gold, fontWeight: 600 }}>Marco</span>
+              <span style={{ fontSize: '0.75rem', color: THEME.blueMuted, marginLeft: '0.3rem' }}>
                 is typing<span className="typing-dots">...</span>
               </span>
             </div>
@@ -381,7 +382,7 @@ export default function ChatTab({ userEmail }) {
       {attachments.length > 0 && (
         <div style={{
           padding: '0.5rem 1rem',
-          borderTop: '1px solid rgba(255,200,80,0.1)',
+          borderTop: `1px solid ${THEME.rgba(THEME.base.gold, 0.1)}`,
           display: 'flex',
           flexWrap: 'wrap',
           gap: '0.4rem',
@@ -389,10 +390,10 @@ export default function ChatTab({ userEmail }) {
           {attachments.map((att, i) => (
             <span key={i} style={{
               padding: '0.3rem 0.6rem',
-              background: 'rgba(200,168,75,0.15)',
+              background: THEME.rgba(THEME.base.goldDeep, 0.15),
               borderRadius: '6px',
               fontSize: '0.75rem',
-              color: '#c8a84b',
+              color: THEME.gold,
               display: 'flex',
               alignItems: 'center',
               gap: '0.3rem',
@@ -403,7 +404,7 @@ export default function ChatTab({ userEmail }) {
                 style={{
                   background: 'none',
                   border: 'none',
-                  color: '#8a7848',
+                  color: THEME.goldDark,
                   cursor: 'pointer',
                   padding: '0 0.2rem',
                   fontSize: '0.8rem',
@@ -419,7 +420,7 @@ export default function ChatTab({ userEmail }) {
       {/* Input area */}
       <div style={{
         padding: '0.8rem',
-        borderTop: '1px solid rgba(255,200,80,0.15)',
+        borderTop: `1px solid ${THEME.rgba(THEME.base.gold, 0.15)}`,
         display: 'flex',
         gap: '0.5rem',
         alignItems: 'flex-end',
@@ -429,11 +430,11 @@ export default function ChatTab({ userEmail }) {
           onClick={() => fileInputRef.current?.click()}
           disabled={uploadingAttachment || sending}
           style={{
-            background: 'rgba(255,255,255,0.05)',
-            border: '1px solid rgba(255,200,80,0.2)',
+            background: THEME.rgba(THEME.base.white, 0.05),
+            border: `1px solid ${THEME.rgba(THEME.base.gold, 0.2)}`,
             borderRadius: '8px',
             padding: '0.6rem',
-            color: uploadingAttachment ? '#4a6888' : '#8bacc8',
+            color: uploadingAttachment ? THEME.blueDim : THEME.blue,
             cursor: uploadingAttachment || sending ? 'not-allowed' : 'pointer',
             fontSize: '1rem',
           }}
@@ -460,11 +461,11 @@ export default function ChatTab({ userEmail }) {
           disabled={sending}
           style={{
             flex: 1,
-            background: 'rgba(255,255,255,0.05)',
-            border: '1px solid rgba(255,200,80,0.2)',
+            background: THEME.rgba(THEME.base.white, 0.05),
+            border: `1px solid ${THEME.rgba(THEME.base.gold, 0.2)}`,
             borderRadius: '10px',
             padding: '0.7rem 1rem',
-            color: '#e8dcc8',
+            color: THEME.parchment,
             fontFamily: 'inherit',
             fontSize: '0.9rem',
             resize: 'none',
@@ -480,12 +481,12 @@ export default function ChatTab({ userEmail }) {
           disabled={sending || (!input.trim() && attachments.length === 0)}
           style={{
             background: sending || (!input.trim() && attachments.length === 0)
-              ? 'rgba(200,168,75,0.3)'
-              : 'linear-gradient(135deg, #c8a84b, #e8c87a)',
+              ? THEME.rgba(THEME.base.goldDeep, 0.3)
+              : `linear-gradient(135deg, ${THEME.gold}, ${THEME.goldLight})`,
             border: 'none',
             borderRadius: '8px',
             padding: '0.6rem 0.8rem',
-            color: '#0a1628',
+            color: THEME.bgDeep,
             cursor: sending || (!input.trim() && attachments.length === 0) ? 'not-allowed' : 'pointer',
             fontSize: '1rem',
           }}
