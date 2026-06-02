@@ -87,10 +87,10 @@ export default async function handler(req, res) {
       }
     }
 
-    // Fetch travelers from database
+    // Fetch travelers from database (including uploaded reference headshots)
     const { data: travelers } = await supabase
       .from('trip_travelers')
-      .select('name, description, role')
+      .select('name, description, role, reference_paths')
       .order('role', { ascending: true });  // crew first, then guests
 
     // Compress and resize image to fit under 5MB limit
@@ -130,29 +130,64 @@ Known locations for this day:
       travelerContext = `\nPeople on this trip: ${travelerList}. If you recognize any of them in the photo, mention them by name.`;
     }
 
-    // Call Anthropic API with enriched context
-    const message = await anthropic.messages.create({
-      model: 'claude-sonnet-4-20250514',
-      max_tokens: 1000,
-      messages: [
-        {
-          role: 'user',
-          content: [
-            {
-              type: 'image',
-              source: {
-                type: 'base64',
-                media_type: 'image/jpeg',
-                data: base64,
-              },
-            },
-            {
-              type: 'text',
-              text: `You are an Aeolian Islands travel expert helping identify photos from a yacht charter trip.
+    // Gather labeled reference headshots to ground face matching. Capped to keep
+    // token cost/latency bounded; if nobody has references, this is a no-op.
+    const MAX_REFERENCE_IMAGES = 6;
+    const referenceImages = [];
+    for (const t of travelers || []) {
+      if (referenceImages.length >= MAX_REFERENCE_IMAGES) break;
+      const path = Array.isArray(t.reference_paths) ? t.reference_paths[0] : null;
+      if (!path) continue;
+      try {
+        const { data: refData, error: refErr } = await supabase.storage.from('photos').download(path);
+        if (refErr || !refData) continue;
+        const refBuffer = Buffer.from(await refData.arrayBuffer());
+        const refCompressed = await sharp(refBuffer)
+          .resize(512, 512, { fit: 'inside', withoutEnlargement: true })
+          .jpeg({ quality: 80 })
+          .toBuffer();
+        referenceImages.push({ name: t.name, data: refCompressed.toString('base64') });
+      } catch (refErr) {
+        console.log(`Reference headshot skipped for ${t.name}:`, refErr.message);
+      }
+    }
 
-This photo was taken on ${day_context}.${gpsInfo}${locationContext}${travelerContext}
+    // Feedback loop: recent human-confirmed identifications, to stay consistent
+    // with the names/places the group has already verified.
+    let confirmedContext = '';
+    const { data: verifiedPhotos } = await supabase
+      .from('trip_photos')
+      .select('title, location, people, description')
+      .eq('verified', true)
+      .order('created_at', { ascending: false })
+      .limit(5);
+    if (verifiedPhotos && verifiedPhotos.length > 0) {
+      confirmedContext = `\n\nThe group has CONFIRMED these past identifications — match their names and place spellings:\n` +
+        verifiedPhotos.map(p => {
+          const ppl = Array.isArray(p.people) && p.people.length ? ` — people: ${p.people.join(', ')}` : '';
+          return `- "${p.title}" at ${p.location}${ppl}`;
+        }).join('\n');
+    }
 
-Identify the location, landmarks, food, or people in this photo. Be specific - use the known locations list to help identify places.
+    // Build the message content: labeled reference faces first, then the photo
+    // to identify, then the instruction.
+    const content = [];
+    if (referenceImages.length > 0) {
+      content.push({ type: 'text', text: 'Labeled reference photos of people on this trip (match faces against these):' });
+      for (const ref of referenceImages) {
+        content.push({ type: 'text', text: `This is ${ref.name}:` });
+        content.push({ type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: ref.data } });
+      }
+    }
+    content.push({ type: 'text', text: 'Photo to identify:' });
+    content.push({ type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: base64 } });
+    content.push({
+      type: 'text',
+      text: `You are an Aeolian Islands travel expert helping identify photos from a yacht charter trip.
+
+This photo (the one labeled "Photo to identify") was taken on ${day_context}.${gpsInfo}${locationContext}${travelerContext}${confirmedContext}
+
+Identify the location, landmarks, food, or people in the photo to identify. Be specific - use the known locations list to help identify places. ${referenceImages.length > 0 ? 'Match any faces against the labeled reference photos above; only name a person if you are reasonably confident, otherwise leave them out.' : ''}
 
 Respond with ONLY a JSON object (no markdown):
 {
@@ -160,12 +195,16 @@ Respond with ONLY a JSON object (no markdown):
   "location": "specific place / landmark identified",
   "description": "2-3 sentence vivid travel description mentioning people by name if present",
   "tags": ["tag1","tag2","tag3"],
-  "category": one of "landmark","food","seascape","wildlife","people","architecture","activity","volcano"
+  "category": one of "landmark","food","seascape","wildlife","people","architecture","activity","volcano",
+  "people": ["names of recognized travelers; empty array if none"]
 }`,
-            },
-          ],
-        },
-      ],
+    });
+
+    // Call Anthropic API with enriched context
+    const message = await anthropic.messages.create({
+      model: 'claude-sonnet-4-20250514',
+      max_tokens: 1000,
+      messages: [{ role: 'user', content }],
     });
 
     // Parse the response
@@ -183,6 +222,7 @@ Respond with ONLY a JSON object (no markdown):
         description: parsed.description || '',
         tags: parsed.tags || [],
         category: parsed.category || 'landmark',
+        people: Array.isArray(parsed.people) ? parsed.people : [],
         identified_at: new Date().toISOString(),
       })
       .eq('id', photo_id);

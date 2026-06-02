@@ -10,6 +10,7 @@ import PlacesTab from './components/PlacesTab';
 import PhotosTab from './components/PhotosTab';
 import ChatTab from './components/ChatTab';
 import MapTab from './components/MapTab';
+import TravelersModal from './components/TravelersModal';
 import { THEME } from './config/theme';
 
 export default function App() {
@@ -18,6 +19,7 @@ export default function App() {
   const [activeDay, setActiveDay] = useState(0);
   const [tab, setTab] = useState('plan');
   const [totalPhotos, setTotalPhotos] = useState(0);
+  const [showTravelers, setShowTravelers] = useState(false);
 
   const day = TRIP.days[activeDay];
   const userEmail = session?.user?.email;
@@ -137,21 +139,38 @@ export default function App() {
               <div style={{ fontSize: '0.7rem', color: THEME.blueMuted, marginBottom: '0.3rem' }}>
                 {userEmail}
               </div>
-              <button
-                onClick={handleLogout}
-                style={{
-                  background: 'none',
-                  border: `1px solid ${THEME.rgba(THEME.base.gold, 0.2)}`,
-                  borderRadius: '6px',
-                  padding: '0.3rem 0.7rem',
-                  color: THEME.blue,
-                  fontSize: '0.7rem',
-                  cursor: 'pointer',
-                  fontFamily: 'inherit',
-                }}
-              >
-                Log out
-              </button>
+              <div style={{ display: 'flex', gap: '0.4rem', justifyContent: 'flex-end' }}>
+                <button
+                  onClick={() => setShowTravelers(true)}
+                  style={{
+                    background: 'none',
+                    border: `1px solid ${THEME.rgba(THEME.base.gold, 0.2)}`,
+                    borderRadius: '6px',
+                    padding: '0.3rem 0.7rem',
+                    color: THEME.blue,
+                    fontSize: '0.7rem',
+                    cursor: 'pointer',
+                    fontFamily: 'inherit',
+                  }}
+                >
+                  👥 Travelers
+                </button>
+                <button
+                  onClick={handleLogout}
+                  style={{
+                    background: 'none',
+                    border: `1px solid ${THEME.rgba(THEME.base.gold, 0.2)}`,
+                    borderRadius: '6px',
+                    padding: '0.3rem 0.7rem',
+                    color: THEME.blue,
+                    fontSize: '0.7rem',
+                    cursor: 'pointer',
+                    fontFamily: 'inherit',
+                  }}
+                >
+                  Log out
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -184,6 +203,8 @@ export default function App() {
         {tab === 'photos' && <PhotosTab day={day} userEmail={userEmail} />}
         {tab === 'chat' && <ChatTab userEmail={userEmail} />}
       </main>
+
+      {showTravelers && <TravelersModal onClose={() => setShowTravelers(false)} />}
     </div>
   );
 }

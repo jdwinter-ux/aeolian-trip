@@ -23,6 +23,8 @@ CREATE TABLE IF NOT EXISTS trip_photos (
   description   TEXT,
   tags          TEXT[] DEFAULT '{}',
   category      TEXT,
+  people        TEXT[] DEFAULT '{}',   -- structured identified people
+  verified      BOOLEAN DEFAULT false, -- true once a human edits/confirms
   identified_at TIMESTAMPTZ,
   created_at    TIMESTAMPTZ DEFAULT now()
 );
@@ -53,12 +55,13 @@ CREATE INDEX IF NOT EXISTS idx_trip_chat_created_at ON trip_chat(created_at);
 -- Travelers (guests + crew), used for photo identification context
 CREATE TABLE IF NOT EXISTS trip_travelers (
   id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  name          TEXT NOT NULL,
-  role          TEXT,
-  description   TEXT,
-  email         TEXT,
-  created_at    TIMESTAMPTZ DEFAULT now(),
-  updated_at    TIMESTAMPTZ DEFAULT now()
+  name            TEXT NOT NULL,
+  role            TEXT,
+  description     TEXT,
+  email           TEXT,
+  reference_paths TEXT[] DEFAULT '{}', -- headshot storage paths (photos bucket)
+  created_at      TIMESTAMPTZ DEFAULT now(),
+  updated_at      TIMESTAMPTZ DEFAULT now()
 );
 
 -- ----------------------------------------------------------------------------

@@ -17,6 +17,9 @@ export default function PhotosTab({ day, userEmail }) {
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
+  const [editingId, setEditingId] = useState(null);
+  const [draft, setDraft] = useState(null);
+  const [savingEdit, setSavingEdit] = useState(false);
 
   const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
   const dayNumber = day?.n;
@@ -213,6 +216,60 @@ export default function PhotosTab({ day, userEmail }) {
     }
   }
 
+  function startEdit(photo) {
+    setEditingId(photo.id);
+    setDraft({
+      title: photo.title || '',
+      location: photo.location || '',
+      description: photo.description || '',
+      category: photo.category || 'landmark',
+      tags: (photo.tags || []).join(', '),
+      people: (photo.people || []).join(', '),
+    });
+  }
+
+  function cancelEdit() {
+    setEditingId(null);
+    setDraft(null);
+  }
+
+  // Split a comma-separated input into a clean array
+  function splitList(s) {
+    return (s || '').split(',').map(x => x.trim()).filter(Boolean);
+  }
+
+  async function saveEdit(photo) {
+    if (!draft) return;
+    setSavingEdit(true);
+    const updates = {
+      title: draft.title.trim() || 'Untitled',
+      location: draft.location.trim(),
+      description: draft.description.trim(),
+      category: draft.category,
+      tags: splitList(draft.tags),
+      people: splitList(draft.people),
+      verified: true, // human-confirmed; feeds future identifications
+    };
+    const { error } = await supabase
+      .from('trip_photos')
+      .update(updates)
+      .eq('id', photo.id);
+
+    if (!error) {
+      setPhotos(prev => prev.map(p => (p.id === photo.id ? { ...p, ...updates } : p)));
+      cancelEdit();
+    }
+    setSavingEdit(false);
+  }
+
+  const editInputStyle = {
+    width: '100%', boxSizing: 'border-box', marginBottom: '0.4rem',
+    background: THEME.rgba(THEME.base.white, 0.05),
+    border: `1px solid ${THEME.rgba(THEME.base.gold, 0.2)}`,
+    borderRadius: '6px', padding: '0.4rem 0.6rem',
+    color: THEME.parchment, fontFamily: 'inherit', fontSize: '0.8rem', outline: 'none',
+  };
+
   return (
     <div>
       <div style={{
@@ -278,7 +335,7 @@ export default function PhotosTab({ day, userEmail }) {
                   width: '100%', height: '180px', objectFit: 'cover', display: 'block',
                 }}
               />
-              <div style={{ padding: '1rem' }}>
+              <div style={{ padding: '1rem' }} onClick={editingId === photo.id ? (e) => e.stopPropagation() : undefined}>
                 <div style={{
                   display: 'flex',
                   justifyContent: 'space-between',
@@ -288,46 +345,98 @@ export default function PhotosTab({ day, userEmail }) {
                   <div style={{ fontSize: '0.65rem', color: THEME.blueMuted }}>
                     {truncateEmail(photo.author_email)}
                   </div>
-                  {photo.author_email === userEmail && !photo._loading && (
-                    <button
-                      onClick={(e) => { e.stopPropagation(); deletePhoto(photo); }}
-                      style={{
-                        background: 'none',
-                        border: 'none',
-                        color: THEME.blueMuted,
-                        cursor: 'pointer',
-                        fontSize: '0.75rem',
-                        padding: '0.1rem 0.3rem',
-                      }}
-                    >
-                      ✕
-                    </button>
+                  {!photo._loading && editingId !== photo.id && (
+                    <div style={{ display: 'flex', gap: '0.2rem' }}>
+                      <button
+                        onClick={(e) => { e.stopPropagation(); startEdit(photo); }}
+                        title="Edit / correct"
+                        style={{
+                          background: 'none', border: 'none', color: THEME.blueMuted,
+                          cursor: 'pointer', fontSize: '0.75rem', padding: '0.1rem 0.3rem',
+                        }}
+                      >
+                        ✎
+                      </button>
+                      {photo.author_email === userEmail && (
+                        <button
+                          onClick={(e) => { e.stopPropagation(); deletePhoto(photo); }}
+                          style={{
+                            background: 'none', border: 'none', color: THEME.blueMuted,
+                            cursor: 'pointer', fontSize: '0.75rem', padding: '0.1rem 0.3rem',
+                          }}
+                        >
+                          ✕
+                        </button>
+                      )}
+                    </div>
                   )}
                 </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.4rem' }}>
-                  <div style={{ fontSize: '0.95rem', color: THEME.cream, fontWeight: 600 }}>
-                    {photo._loading ? <span style={{ opacity: 0.6 }}>✨ Identifying...</span> : photo.title}
+
+                {editingId === photo.id ? (
+                  <div>
+                    <input style={editInputStyle} value={draft.title}
+                      onChange={e => setDraft({ ...draft, title: e.target.value })} placeholder="Title" />
+                    <input style={editInputStyle} value={draft.location}
+                      onChange={e => setDraft({ ...draft, location: e.target.value })} placeholder="Location" />
+                    <textarea style={{ ...editInputStyle, resize: 'vertical', lineHeight: 1.4 }} rows={3} value={draft.description}
+                      onChange={e => setDraft({ ...draft, description: e.target.value })} placeholder="Description" />
+                    <select style={editInputStyle} value={draft.category}
+                      onChange={e => setDraft({ ...draft, category: e.target.value })}>
+                      {Object.keys(CATEGORY_ICONS).map(c => (
+                        <option key={c} value={c}>{(CATEGORY_ICONS[c] || '')} {c}</option>
+                      ))}
+                    </select>
+                    <input style={editInputStyle} value={draft.people}
+                      onChange={e => setDraft({ ...draft, people: e.target.value })} placeholder="People (comma-separated)" />
+                    <input style={editInputStyle} value={draft.tags}
+                      onChange={e => setDraft({ ...draft, tags: e.target.value })} placeholder="Tags (comma-separated)" />
+                    <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.3rem' }}>
+                      <button onClick={() => saveEdit(photo)} disabled={savingEdit} style={{
+                        padding: '0.4rem 1rem', border: 'none', borderRadius: '6px',
+                        background: savingEdit ? THEME.rgba(THEME.base.gold, 0.3) : `linear-gradient(135deg, ${THEME.gold}, ${THEME.goldLight})`,
+                        color: THEME.bgDeep, fontWeight: 700, fontFamily: 'inherit', fontSize: '0.75rem',
+                        cursor: savingEdit ? 'not-allowed' : 'pointer',
+                      }}>{savingEdit ? 'Saving...' : 'Save'}</button>
+                      <button onClick={cancelEdit} disabled={savingEdit} style={{
+                        padding: '0.4rem 1rem', borderRadius: '6px',
+                        background: 'none', border: `1px solid ${THEME.rgba(THEME.base.gold, 0.2)}`,
+                        color: THEME.blue, fontFamily: 'inherit', fontSize: '0.75rem', cursor: 'pointer',
+                      }}>Cancel</button>
+                    </div>
                   </div>
-                  <div style={{ fontSize: '1.2rem' }}>{photo._loading ? '⏳' : (CATEGORY_ICONS[photo.category] || '📸')}</div>
-                </div>
-                <div style={{ fontSize: '0.75rem', color: THEME.gold, marginBottom: '0.5rem' }}>
-                  📍 {photo.location}
-                </div>
-                <div style={{ fontSize: '0.8rem', color: THEME.blue, lineHeight: 1.5 }}>
-                  {photo.description}
-                </div>
-                {photo.tags?.length > 0 && (
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.3rem', marginTop: '0.7rem' }}>
-                    {photo.tags.map(tag => (
-                      <span key={tag} style={{
-                        padding: '0.2rem 0.5rem',
-                        background: THEME.rgba(THEME.base.goldDeep, 0.1),
-                        border: `1px solid ${THEME.rgba(THEME.base.goldDeep, 0.2)}`,
-                        borderRadius: '20px', fontSize: '0.65rem',
-                        color: THEME.goldMuted, letterSpacing: '0.05em',
-                      }}>{tag}</span>
-                    ))}
-                  </div>
+                ) : (
+                  <>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.4rem' }}>
+                      <div style={{ fontSize: '0.95rem', color: THEME.cream, fontWeight: 600 }}>
+                        {photo._loading ? <span style={{ opacity: 0.6 }}>✨ Identifying...</span> : photo.title}
+                      </div>
+                      <div style={{ fontSize: '1.2rem' }}>{photo._loading ? '⏳' : (CATEGORY_ICONS[photo.category] || '📸')}</div>
+                    </div>
+                    <div style={{ fontSize: '0.75rem', color: THEME.gold, marginBottom: '0.5rem' }}>
+                      📍 {photo.location}
+                    </div>
+                    <div style={{ fontSize: '0.8rem', color: THEME.blue, lineHeight: 1.5 }}>
+                      {photo.description}
+                    </div>
+                    {photo.people?.length > 0 && (
+                      <div style={{ fontSize: '0.75rem', color: THEME.sand, marginTop: '0.5rem' }}>
+                        👤 {photo.people.join(', ')}
+                      </div>
+                    )}
+                    {photo.tags?.length > 0 && (
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.3rem', marginTop: '0.7rem' }}>
+                        {photo.tags.map(tag => (
+                          <span key={tag} style={{
+                            padding: '0.2rem 0.5rem',
+                            background: THEME.rgba(THEME.base.goldDeep, 0.1),
+                            border: `1px solid ${THEME.rgba(THEME.base.goldDeep, 0.2)}`,
+                            borderRadius: '20px', fontSize: '0.65rem',
+                            color: THEME.goldMuted, letterSpacing: '0.05em',
+                          }}>{tag}</span>
+                        ))}
+                      </div>
+                    )}
+                  </>
                 )}
               </div>
             </div>
