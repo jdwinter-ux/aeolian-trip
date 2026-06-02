@@ -7,6 +7,11 @@ import { THEME } from '../config/theme';
 // Must match the placeholder api/chat.js stores so realtime de-dup reconciles.
 const PHOTO_ONLY_PLACEHOLDER = '📷 Shared a photo';
 
+// Public URL for a chat attachment (the chat-attachments bucket is public-read)
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+const attachmentUrl = (att) => `${supabaseUrl}/storage/v1/object/public/chat-attachments/${att.storage_path}`;
+const isImageAttachment = (att) => att?.type?.startsWith('image/') && att?.storage_path;
+
 function truncateEmail(email) {
   if (!email || typeof email !== 'string') return '';
   const atIndex = email.indexOf('@');
@@ -342,17 +347,30 @@ export default function ChatTab({ userEmail }) {
                     )}
                   </div>
                   {msg.attachments && msg.attachments.length > 0 && (
-                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.3rem', marginTop: '0.5rem' }}>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem', marginTop: '0.5rem' }}>
                       {msg.attachments.map((att, i) => (
-                        <span key={i} style={{
-                          padding: '0.2rem 0.5rem',
-                          background: THEME.rgba(THEME.base.white, 0.1),
-                          borderRadius: '4px',
-                          fontSize: '0.65rem',
-                          color: THEME.blue,
-                        }}>
-                          {att.type.startsWith('image/') ? '🖼️' : '📄'} {att.name}
-                        </span>
+                        isImageAttachment(att) ? (
+                          <img
+                            key={i}
+                            src={attachmentUrl(att)}
+                            alt={att.name}
+                            style={{
+                              maxWidth: '100%', maxHeight: 220, objectFit: 'contain',
+                              borderRadius: '8px', display: 'block',
+                              border: `1px solid ${THEME.rgba(THEME.base.gold, 0.2)}`,
+                            }}
+                          />
+                        ) : (
+                          <span key={i} style={{
+                            padding: '0.2rem 0.5rem',
+                            background: THEME.rgba(THEME.base.white, 0.1),
+                            borderRadius: '4px',
+                            fontSize: '0.65rem',
+                            color: THEME.blue,
+                          }}>
+                            📄 {att.name}
+                          </span>
+                        )
                       ))}
                     </div>
                   )}
@@ -394,31 +412,52 @@ export default function ChatTab({ userEmail }) {
           gap: '0.4rem',
         }}>
           {attachments.map((att, i) => (
-            <span key={i} style={{
-              padding: '0.3rem 0.6rem',
-              background: THEME.rgba(THEME.base.goldDeep, 0.15),
-              borderRadius: '6px',
-              fontSize: '0.75rem',
-              color: THEME.gold,
-              display: 'flex',
-              alignItems: 'center',
-              gap: '0.3rem',
-            }}>
-              {att.type.startsWith('image/') ? '🖼️' : '📄'} {att.name}
-              <button
-                onClick={() => removeAttachment(i)}
-                style={{
-                  background: 'none',
-                  border: 'none',
-                  color: THEME.goldDark,
-                  cursor: 'pointer',
-                  padding: '0 0.2rem',
-                  fontSize: '0.8rem',
-                }}
-              >
-                ×
-              </button>
-            </span>
+            isImageAttachment(att) ? (
+              <div key={i} style={{ position: 'relative' }}>
+                <img src={attachmentUrl(att)} alt={att.name} style={{
+                  width: 56, height: 56, objectFit: 'cover', borderRadius: '6px',
+                  border: `1px solid ${THEME.rgba(THEME.base.gold, 0.3)}`, display: 'block',
+                }} />
+                <button
+                  onClick={() => removeAttachment(i)}
+                  title="Remove"
+                  style={{
+                    position: 'absolute', top: -6, right: -6,
+                    width: 18, height: 18, borderRadius: '50%', border: 'none',
+                    background: THEME.errorStrong, color: THEME.bgDeep,
+                    fontSize: '0.7rem', lineHeight: 1, cursor: 'pointer',
+                  }}
+                >
+                  ×
+                </button>
+              </div>
+            ) : (
+              <span key={i} style={{
+                padding: '0.3rem 0.6rem',
+                background: THEME.rgba(THEME.base.goldDeep, 0.15),
+                borderRadius: '6px',
+                fontSize: '0.75rem',
+                color: THEME.gold,
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.3rem',
+              }}>
+                📄 {att.name}
+                <button
+                  onClick={() => removeAttachment(i)}
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    color: THEME.goldDark,
+                    cursor: 'pointer',
+                    padding: '0 0.2rem',
+                    fontSize: '0.8rem',
+                  }}
+                >
+                  ×
+                </button>
+              </span>
+            )
           ))}
         </div>
       )}
