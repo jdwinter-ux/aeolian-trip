@@ -4,6 +4,30 @@ Running log of work on the Aeolian Islands Voyage Journal. Newest session first.
 
 ---
 
+## Session — 2026-06-01 (offline support, Tier 1 + 2)
+
+### Completed this session
+- Added **`vite-plugin-pwa`** (Workbox service worker) configured in `vite.config.js`:
+  - **Tier 1** — precache the app shell so the app opens offline; static tabs (Plan, Places, Map route) work fully.
+  - **Tier 2** — runtime caching: Supabase REST reads `NetworkFirst` (fresh online / cached offline, 3s timeout); storage images `StaleWhileRevalidate`; map tiles + Leaflet icons `CacheFirst`.
+  - Kept existing `manifest.json` (`manifest: false`).
+- Added an **offline banner** in `src/App.jsx` (online/offline listener) and documented offline behavior in `README.md`.
+
+### Working / tested
+- `npm run build` emits `dist/sw.js` + `workbox-*.js` + `registerSW.js` (5 precache entries); vite-plugin-pwa 1.3.0 works with vite 8. `npm test` 8/8. No new lint errors.
+
+### Incomplete / buggy / caveats
+- Service worker is **production-only** (not in `npm run dev`); offline behavior must be tested in a real browser (DevTools → Offline) or on the deploy. Confirm `/sw.js` serves 200 post-deploy and do the load-online-then-offline check.
+- Users must open the app **online once** to populate caches; background **map tiles** only cover areas already viewed.
+- Offline **writes** (new note/photo/chat) and AI features remain online-only (Tier 3 not done).
+
+### Tackle next time
+- Optional **Tier 3**: queue offline note/photo creation and sync on reconnect.
+- Remaining README items: PDF export, photo cropping before upload.
+- Pre-existing cosmetic gap: missing PWA icon PNGs (`icon-192/512`, `apple-touch-icon`).
+
+---
+
 ## Session — 2026-06-01 (quality & robustness pass)
 
 ### Completed this session

@@ -74,13 +74,21 @@ Simply share the trip passcode with them. They enter their email + passcode, rec
 
 Note: Existing logged-in users stay logged in. Only new logins require the updated passcode.
 
+## Offline support
+
+The app is a PWA with a service worker (via `vite-plugin-pwa`). After you open it
+**online at least once**, it works offline:
+
+- The full app loads (no blank screen) — itinerary, Places, and the Map route are static and always available.
+- Previously-viewed notes, photos, chat history, and images render from cache.
+- An "Offline" banner appears. Creating new notes/photos/chat and the AI features (Marco, photo identification) require a connection and resume when you're back online.
+- Background map tiles only cover areas already viewed online; the route overlay always draws.
+
 ## Future Enhancements
 
-- Map integration showing photo locations
-- Realtime sync (Supabase Realtime)
 - Photo editing/cropping before upload
 - Export trip journal as PDF
-- Offline support with service worker
+- Offline **writes** — queue new notes/photos while offline and sync on reconnect
 
 ---
 

@@ -20,6 +20,7 @@ export default function App() {
   const [tab, setTab] = useState('plan');
   const [totalPhotos, setTotalPhotos] = useState(0);
   const [showTravelers, setShowTravelers] = useState(false);
+  const [online, setOnline] = useState(typeof navigator !== 'undefined' ? navigator.onLine : true);
 
   const day = TRIP.days[activeDay];
   const userEmail = session?.user?.email;
@@ -37,6 +38,18 @@ export default function App() {
     });
 
     return () => subscription.unsubscribe();
+  }, []);
+
+  // Track connectivity to show an offline banner
+  useEffect(() => {
+    const goOnline = () => setOnline(true);
+    const goOffline = () => setOnline(false);
+    window.addEventListener('online', goOnline);
+    window.addEventListener('offline', goOffline);
+    return () => {
+      window.removeEventListener('online', goOnline);
+      window.removeEventListener('offline', goOffline);
+    };
   }, []);
 
   useEffect(() => {
@@ -95,6 +108,19 @@ export default function App() {
       position: 'relative',
       overflow: 'hidden',
     }}>
+      {/* Offline banner */}
+      {!online && (
+        <div style={{
+          position: 'relative', zIndex: 2,
+          background: THEME.rgba(THEME.base.amber, 0.15),
+          borderBottom: `1px solid ${THEME.rgba(THEME.base.gold, 0.3)}`,
+          color: THEME.cream, textAlign: 'center',
+          padding: '0.5rem 1rem', fontSize: '0.75rem', letterSpacing: '0.03em',
+        }}>
+          ⚡ Offline — showing saved data. New notes, photos, and chat will work again once you're back online.
+        </div>
+      )}
+
       {/* Decorative backgrounds */}
       <div style={{
         position: 'fixed', bottom: 0, left: 0, right: 0, height: '180px',
