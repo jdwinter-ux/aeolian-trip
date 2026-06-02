@@ -212,7 +212,10 @@ export default function PhotosTab({ day, userEmail }) {
       .eq('id', photo.id);
 
     if (!error) {
-      setPhotos(photos.filter(p => p.id !== photo.id));
+      setPhotos(prev => prev.filter(p => p.id !== photo.id));
+    } else {
+      console.error('Delete photo error:', error);
+      setErrorMsg("Couldn't delete that photo. Please try again.");
     }
   }
 
@@ -258,6 +261,9 @@ export default function PhotosTab({ day, userEmail }) {
     if (!error) {
       setPhotos(prev => prev.map(p => (p.id === photo.id ? { ...p, ...updates } : p)));
       cancelEdit();
+    } else {
+      console.error('Save edit error:', error);
+      setErrorMsg("Couldn't save your changes. Please try again.");
     }
     setSavingEdit(false);
   }

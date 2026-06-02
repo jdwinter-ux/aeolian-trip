@@ -3,6 +3,7 @@ import { createClient } from '@supabase/supabase-js';
 import sharp from 'sharp';
 import { TRIP } from '../src/data/trip.js';
 import { GUIDE } from '../src/data/guide.js';
+import { PHOTO_ONLY_PLACEHOLDER } from '../src/lib/chatConstants.js';
 
 // Helper to process attachments into Claude content blocks
 async function processAttachments(attachments, supabase) {
@@ -227,10 +228,17 @@ export default async function handler(req, res) {
     // Build messages array with history
     const messages = [];
     for (const msg of chatHistory) {
+      // Skip empty-content rows — the Anthropic API rejects empty content blocks,
+      // and a single empty row would otherwise break every subsequent request.
+      if (!msg.content || !msg.content.trim()) continue;
       messages.push({
         role: msg.role,
         content: msg.content,
       });
+    }
+    // The API requires the first message to be from the user.
+    while (messages.length > 0 && messages[0].role !== 'user') {
+      messages.shift();
     }
 
     // Process any attachments (images, etc.)
@@ -273,9 +281,9 @@ export default async function handler(req, res) {
         role: 'user',
         author_email: user.email,
         // Store a placeholder (not empty) for photo-only sends so chat history
-        // never feeds an empty content block into future prompts. Must match the
-        // client's PHOTO_ONLY_PLACEHOLDER so realtime de-dup reconciles.
-        content: trimmedMessage || '📷 Shared a photo',
+        // never feeds an empty content block into future prompts. Shared constant
+        // keeps it in sync with the client so realtime de-dup reconciles.
+        content: trimmedMessage || PHOTO_ONLY_PLACEHOLDER,
         attachments: attachments || null,
       })
       .select()
@@ -345,7 +353,10 @@ export default async function handler(req, res) {
 
     // Handle tool use if Claude wants to manage travelers
     let assistantMessage = '';
-    while (response.stop_reason === 'tool_use') {
+    let toolRounds = 0;
+    const MAX_TOOL_ROUNDS = 5; // guard against an unbounded tool-use loop
+    while (response.stop_reason === 'tool_use' && toolRounds < MAX_TOOL_ROUNDS) {
+      toolRounds++;
       const toolUseBlock = response.content.find(b => b.type === 'tool_use');
       if (!toolUseBlock) break;
 
@@ -354,10 +365,14 @@ export default async function handler(req, res) {
       try {
         if (toolUseBlock.name === 'add_traveler') {
           const { name, role, description } = toolUseBlock.input;
-          const { error } = await supabase
-            .from('trip_travelers')
-            .insert({ name, role: role || 'guest', description: description || null });
-          toolResult = error ? `Error: ${error.message}` : `Added ${name} to the trip!`;
+          if (!name || !name.trim()) {
+            toolResult = 'Error: a name is required to add a traveler.';
+          } else {
+            const { error } = await supabase
+              .from('trip_travelers')
+              .insert({ name: name.trim(), role: role || 'guest', description: description || null });
+            toolResult = error ? `Error: ${error.message}` : `Added ${name.trim()} to the trip!`;
+          }
         }
         else if (toolUseBlock.name === 'update_traveler') {
           const { name, role, description } = toolUseBlock.input;
@@ -416,8 +431,12 @@ export default async function handler(req, res) {
       });
     }
 
-    // Get the final text response
+    // Get the final text response. Never empty — an empty string would be
+    // rejected by the API when replayed as history on the next turn.
     assistantMessage = response.content.find(b => b.type === 'text')?.text || '';
+    if (!assistantMessage.trim()) {
+      assistantMessage = "Mi dispiace — I didn't quite catch that. Could you try rephrasing?";
+    }
 
     // Store assistant response
     const { data: assistantMsgData, error: assistantMsgError } = await supabase

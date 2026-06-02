@@ -241,6 +241,7 @@ Respond with ONLY a JSON object (no markdown):
       description: 'AI identification failed. Tap to retry.',
       tags: [],
       category: 'landmark',
+      people: [],
     });
   }
 }

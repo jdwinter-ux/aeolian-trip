@@ -59,12 +59,23 @@ export default function TravelersModal({ onClose }) {
     const ext = file.name.split('.').pop();
     const path = `travelers/${traveler.id}/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
     const { error: upErr } = await supabase.storage.from('photos').upload(path, file);
-    if (!upErr) {
-      const next = [...(traveler.reference_paths || []), path];
-      const { error } = await supabase.from('trip_travelers')
-        .update({ reference_paths: next, updated_at: new Date().toISOString() })
-        .eq('id', traveler.id);
-      if (!error) setTravelers(prev => prev.map(t => (t.id === traveler.id ? { ...t, reference_paths: next } : t)));
+    if (upErr) {
+      console.error('Headshot upload failed:', upErr);
+      alert('Could not upload that photo. Please try again.');
+      setBusyId(null);
+      return;
+    }
+    const next = [...(traveler.reference_paths || []), path];
+    const { error } = await supabase.from('trip_travelers')
+      .update({ reference_paths: next, updated_at: new Date().toISOString() })
+      .eq('id', traveler.id);
+    if (!error) {
+      setTravelers(prev => prev.map(t => (t.id === traveler.id ? { ...t, reference_paths: next } : t)));
+    } else {
+      console.error('Headshot save failed:', error);
+      // Roll back the orphaned upload so it doesn't linger in storage
+      await supabase.storage.from('photos').remove([path]);
+      alert('Could not save that photo. Please try again.');
     }
     setBusyId(null);
   }

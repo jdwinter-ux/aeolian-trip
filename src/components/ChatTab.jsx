@@ -1,15 +1,14 @@
 import { useState, useEffect, useRef } from 'react';
 import { sendChatMessage, fetchChatHistory, uploadChatAttachment, mergeMessage } from '../lib/chat';
 import { useRealtime } from '../lib/useRealtime';
+import { PHOTO_ONLY_PLACEHOLDER } from '../lib/chatConstants';
 import { THEME } from '../config/theme';
 
-// Shown (and stored) as the message body when a photo is sent with no caption.
-// Must match the placeholder api/chat.js stores so realtime de-dup reconciles.
-const PHOTO_ONLY_PLACEHOLDER = '📷 Shared a photo';
-
-// Public URL for a chat attachment (the chat-attachments bucket is public-read)
+// Public URL for a chat attachment (the chat-attachments bucket is public-read).
+// Encode the path so unusual filename-derived characters can't break the URL.
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-const attachmentUrl = (att) => `${supabaseUrl}/storage/v1/object/public/chat-attachments/${att.storage_path}`;
+const attachmentUrl = (att) =>
+  `${supabaseUrl}/storage/v1/object/public/chat-attachments/${encodeURIComponent(att.storage_path)}`;
 const isImageAttachment = (att) => att?.type?.startsWith('image/') && att?.storage_path;
 
 function truncateEmail(email) {
@@ -354,6 +353,7 @@ export default function ChatTab({ userEmail }) {
                             key={i}
                             src={attachmentUrl(att)}
                             alt={att.name}
+                            onError={(e) => { e.currentTarget.style.display = 'none'; }}
                             style={{
                               maxWidth: '100%', maxHeight: 220, objectFit: 'contain',
                               borderRadius: '8px', display: 'block',
@@ -414,10 +414,12 @@ export default function ChatTab({ userEmail }) {
           {attachments.map((att, i) => (
             isImageAttachment(att) ? (
               <div key={i} style={{ position: 'relative' }}>
-                <img src={attachmentUrl(att)} alt={att.name} style={{
-                  width: 56, height: 56, objectFit: 'cover', borderRadius: '6px',
-                  border: `1px solid ${THEME.rgba(THEME.base.gold, 0.3)}`, display: 'block',
-                }} />
+                <img src={attachmentUrl(att)} alt={att.name}
+                  onError={(e) => { e.currentTarget.style.opacity = 0.3; }}
+                  style={{
+                    width: 56, height: 56, objectFit: 'cover', borderRadius: '6px',
+                    border: `1px solid ${THEME.rgba(THEME.base.gold, 0.3)}`, display: 'block',
+                  }} />
                 <button
                   onClick={() => removeAttachment(i)}
                   title="Remove"

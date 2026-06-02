@@ -4,6 +4,27 @@ Running log of work on the Aeolian Islands Voyage Journal. Newest session first.
 
 ---
 
+## Session — 2026-06-01 (quality & robustness pass)
+
+### Completed this session
+- Ran a 3-reviewer pass over the new feature code (photo editing, Travelers modal, reference-headshot recognition, photo-only chat, thumbnails) and applied fixes.
+- **`api/chat.js` correctness:** filter empty-content rows out of replayed history and trim leading assistant messages (both caused hard Anthropic 400s that broke the thread); never store/return an empty assistant message (friendly fallback); cap the tool-use loop at 5 rounds; guard `add_traveler` against a blank name.
+- **Robustness/UX:** `identify.js` error fallback includes `people: []`; `PhotosTab` edit & delete now surface errors (and delete uses a functional state update); chat image URLs are URL-encoded with an `onError` fallback; `TravelersModal` reports upload failures and rolls back orphaned uploads.
+- **Maintainability:** centralized the photo-only placeholder in `src/lib/chatConstants.js` (imported by client + server) to prevent silent drift.
+
+### Working / tested
+- `npm run build` clean; `npm test` 8/8; both `api/` modules load (cross-dir imports incl. new shared constant resolve).
+- No new lint rule types introduced.
+
+### Incomplete / buggy / caveats
+- Server changes (`api/chat.js`) validated only by load probe locally — confirm Marco chat end-to-end on deploy.
+- Acknowledged, not fixed (low-probability / by-design): concurrent same-photo edit is last-write-wins; retry after the server already persisted a message can duplicate it; `trip_travelers` isn't in the realtime publication (modal refetches on open); `ilike` traveler-name matching uses model-controlled (trusted) input.
+
+### Tackle next time
+- Same open items as below, plus: consider adding `trip_travelers` to realtime if live roster sync becomes desirable.
+
+---
+
 ## Session — 2026-06-01
 
 ### Completed this session
