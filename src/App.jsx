@@ -69,14 +69,26 @@ export default function App() {
   );
 
   async function fetchTotalPhotos() {
-    const { count } = await supabase
-      .from('trip_photos')
-      .select('*', { count: 'exact', head: true });
-    setTotalPhotos(count || 0);
+    try {
+      const { count } = await supabase
+        .from('trip_photos')
+        .select('*', { count: 'exact', head: true });
+      setTotalPhotos(count || 0);
+    } catch (err) {
+      // Offline or transient — keep the last known count
+      console.debug('Photo count unavailable:', err?.message);
+    }
   }
 
   async function handleLogout() {
     await supabase.auth.signOut();
+    // Clear cached trip data so it isn't served to the next user on a shared device
+    if (typeof caches !== 'undefined') {
+      await Promise.all([
+        caches.delete('supabase-rest'),
+        caches.delete('supabase-images'),
+      ]).catch(() => { /* best-effort */ });
+    }
   }
 
   if (loading) {

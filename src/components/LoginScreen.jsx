@@ -15,12 +15,18 @@ export default function LoginScreen() {
     e.preventDefault();
     setError('');
 
+    // Fail closed: if no passcode is configured, never let a (blank) one through
+    if (!TRIP_PASSCODE) {
+      setError('Login is not configured yet. Please contact the trip organizer.');
+      return;
+    }
+
     if (passcode !== TRIP_PASSCODE) {
       setError('Invalid trip passcode');
       return;
     }
 
-    if (!email || !email.includes('@')) {
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
       setError('Please enter a valid email');
       return;
     }

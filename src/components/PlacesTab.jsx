@@ -19,6 +19,7 @@ export default function PlacesTab({ day, userEmail }) {
   const [noteInput, setNoteInput] = useState('');
   const [notesLoading, setNotesLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [notesError, setNotesError] = useState('');
 
   useEffect(() => {
     if (!dayNumber) return;
@@ -53,6 +54,10 @@ export default function PlacesTab({ day, userEmail }) {
 
     if (!error && data) {
       setNotes(data);
+      setNotesError('');
+    } else if (error) {
+      console.error('Fetch notes error:', error);
+      setNotesError("Couldn't load notes. They'll appear when you're back online.");
     }
     setNotesLoading(false);
   }
@@ -60,6 +65,7 @@ export default function PlacesTab({ day, userEmail }) {
   async function saveNote() {
     if (!noteInput.trim()) return;
     setSaving(true);
+    setNotesError('');
 
     const { data, error } = await supabase
       .from('trip_notes')
@@ -72,8 +78,11 @@ export default function PlacesTab({ day, userEmail }) {
       .single();
 
     if (!error && data) {
-      setNotes([...notes, data]);
+      setNotes(prev => (prev.some(n => n.id === data.id) ? prev : [...prev, data]));
       setNoteInput('');
+    } else {
+      console.error('Save note error:', error);
+      setNotesError("Couldn't save your note. Check your connection and try again.");
     }
     setSaving(false);
   }
@@ -85,7 +94,10 @@ export default function PlacesTab({ day, userEmail }) {
       .eq('id', noteId);
 
     if (!error) {
-      setNotes(notes.filter(n => n.id !== noteId));
+      setNotes(prev => prev.filter(n => n.id !== noteId));
+    } else {
+      console.error('Delete note error:', error);
+      setNotesError("Couldn't delete that note. Please try again.");
     }
   }
 
@@ -239,6 +251,16 @@ export default function PlacesTab({ day, userEmail }) {
             {saving ? 'Saving...' : 'Save Note'}
           </button>
         </div>
+
+        {notesError && (
+          <div style={{
+            background: THEME.rgba(THEME.base.red, 0.12),
+            border: `1px solid ${THEME.rgba(THEME.base.red, 0.3)}`,
+            borderRadius: '8px', padding: '0.6rem 0.9rem',
+            color: THEME.error, fontSize: '0.78rem',
+            marginBottom: '1rem', lineHeight: 1.5,
+          }}>⚠️ {notesError}</div>
+        )}
 
         {notesLoading ? (
           <div style={{ textAlign: 'center', padding: '2rem 1rem', color: THEME.blueMuted, fontSize: '0.9rem' }}>

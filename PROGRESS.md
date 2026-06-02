@@ -4,6 +4,29 @@ Running log of work on the Aeolian Islands Voyage Journal. Newest session first.
 
 ---
 
+## Session — 2026-06-01 (robustness review #2)
+
+### Completed this session
+- Reviewed the offline/PWA work + previously-unscrutinized areas (login, supabase client, notes) and fixed:
+  - **PlacesTab notes** now surface errors (`saveNote`/`deleteNote`/`fetchNotes`) instead of silently failing, and use functional state updates.
+  - **Logout clears the `supabase-rest` / `supabase-images` SW caches** so cached trip data isn't served to the next user on a shared device.
+  - **LoginScreen**: fail closed if `VITE_TRIP_PASSCODE` is empty (no blank-passcode bypass); stronger email validation.
+  - **`supabase.js`**: clear error if `VITE_SUPABASE_URL`/`ANON_KEY` are missing (instead of a cryptic crash).
+  - **`fetchTotalPhotos`**: wrapped so it doesn't throw an unhandled rejection offline.
+
+### Working / tested
+- `npm run build` clean (SW still emitted); `npm test` 8/8; no new lint rule types. Frontend-only (no `api/` changes).
+
+### Incomplete / buggy / caveats
+- `navigator.onLine` can be a false positive on dead-uplink wifi; mitigated now by visible write-error feedback, but the banner may not appear in that case.
+- Realtime does not refetch events missed during a disconnect (inherent to fetch-on-mount) — a "refetch on reconnect" would close this.
+
+### Tackle next time
+- Optional: refetch notes/photos/count on `window 'online'` to recover from realtime gaps.
+- Tier 3 offline writes; PDF export; photo cropping; missing PWA icon PNGs.
+
+---
+
 ## Session — 2026-06-01 (offline support, Tier 1 + 2)
 
 ### Completed this session
