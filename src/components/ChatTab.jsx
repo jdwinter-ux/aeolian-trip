@@ -3,6 +3,10 @@ import { sendChatMessage, fetchChatHistory, uploadChatAttachment, mergeMessage }
 import { useRealtime } from '../lib/useRealtime';
 import { THEME } from '../config/theme';
 
+// Shown (and stored) as the message body when a photo is sent with no caption.
+// Must match the placeholder api/chat.js stores so realtime de-dup reconciles.
+const PHOTO_ONLY_PLACEHOLDER = '📷 Shared a photo';
+
 function truncateEmail(email) {
   if (!email || typeof email !== 'string') return '';
   const atIndex = email.indexOf('@');
@@ -60,6 +64,8 @@ export default function ChatTab({ userEmail }) {
 
     const messageText = input.trim();
     const messageAttachments = attachments.length > 0 ? attachments : null;
+    // What we display/store for this message (photo-only sends show a placeholder)
+    const displayContent = messageText || (messageAttachments ? PHOTO_ONLY_PLACEHOLDER : '');
 
     // Optimistic update - add user message immediately.
     // Random suffix avoids id collisions when two messages are sent in the
@@ -68,7 +74,7 @@ export default function ChatTab({ userEmail }) {
       id: `temp-${Date.now()}-${Math.random().toString(36).slice(2)}`,
       role: 'user',
       author_email: userEmail,
-      content: messageText,
+      content: displayContent,
       attachments: messageAttachments,
       created_at: new Date().toISOString(),
     };
@@ -103,7 +109,7 @@ export default function ChatTab({ userEmail }) {
         if (idx === -1) {
           for (let i = prev.length - 1; i >= 0; i--) {
             const m = prev[i];
-            if (m.role === 'user' && m.content === messageText && m.author_email === userEmail && !m._error) {
+            if (m.role === 'user' && m.content === displayContent && m.author_email === userEmail && !m._error) {
               idx = i;
               break;
             }

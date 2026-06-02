@@ -9,9 +9,10 @@ export async function sendChatMessage(message, attachments = null) {
     throw new Error('Please log in to chat with Marco');
   }
 
-  // Client-side validation
-  const trimmed = message?.trim();
-  if (!trimmed) {
+  // Client-side validation — allow an attachment-only message (no text)
+  const trimmed = message?.trim() || '';
+  const hasAttachments = Array.isArray(attachments) && attachments.length > 0;
+  if (!trimmed && !hasAttachments) {
     throw new Error('Message cannot be empty');
   }
   if (trimmed.length > 4000) {

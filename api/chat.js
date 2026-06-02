@@ -166,15 +166,12 @@ export default async function handler(req, res) {
   }
 
   const { message, attachments } = req.body;
+  const hasAttachments = Array.isArray(attachments) && attachments.length > 0;
 
-  if (!message || typeof message !== 'string') {
-    return res.status(400).json({ error: 'Message is required' });
-  }
-
-  // Validate message length (prevent abuse)
-  const trimmedMessage = message.trim();
-  if (trimmedMessage.length === 0) {
-    return res.status(400).json({ error: 'Message cannot be empty' });
+  // Validate: require either text or at least one attachment (photo-only is allowed)
+  const trimmedMessage = (typeof message === 'string' ? message : '').trim();
+  if (!trimmedMessage && !hasAttachments) {
+    return res.status(400).json({ error: 'Message or attachment required' });
   }
   if (trimmedMessage.length > 4000) {
     return res.status(400).json({ error: 'Message too long (max 4000 characters)' });
@@ -241,7 +238,10 @@ export default async function handler(req, res) {
 
     // Build user message content (text + any images)
     let userContent;
-    let messageWithFailures = trimmedMessage;
+    // When a photo is sent with no caption, give Marco an explicit instruction
+    // so he identifies and comments on it (and never send an empty text block).
+    const PHOTO_ONLY_PROMPT = 'I shared a photo without a caption. Identify what it shows — landmarks, food, people, or places — and comment on it as Marco, my local guide.';
+    let messageWithFailures = trimmedMessage || PHOTO_ONLY_PROMPT;
 
     // If some attachments failed, note that in the message context
     if (attachmentFailures.length > 0) {
@@ -272,7 +272,10 @@ export default async function handler(req, res) {
       .insert({
         role: 'user',
         author_email: user.email,
-        content: trimmedMessage,
+        // Store a placeholder (not empty) for photo-only sends so chat history
+        // never feeds an empty content block into future prompts. Must match the
+        // client's PHOTO_ONLY_PLACEHOLDER so realtime de-dup reconciles.
+        content: trimmedMessage || '📷 Shared a photo',
         attachments: attachments || null,
       })
       .select()
