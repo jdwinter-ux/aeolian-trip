@@ -69,9 +69,19 @@ export default function PlacesTab({ day, userEmail }) {
     if (!req.active) return;
 
     if (!error && data) {
-      const have = new Set(data.map(n => n.id));
-      const pending = queued.filter(q => !have.has(q.id)).map(q => ({ ...q, _pending: true }));
-      setNotes([...data, ...pending]);
+      setNotes(prev => {
+        const have = new Set(data.map(n => n.id));
+        // Preserve still-unsynced notes for THIS day (optimistic online saves +
+        // queued offline notes) so a concurrent refetch can't drop them.
+        const localPending = prev.filter(
+          n => n._pending && n.day_number === dayNumber && !have.has(n.id)
+        );
+        const seen = new Set([...have, ...localPending.map(n => n.id)]);
+        const queuedPending = queued
+          .filter(q => !seen.has(q.id))
+          .map(q => ({ ...q, _pending: true }));
+        return [...data, ...localPending, ...queuedPending];
+      });
       setNotesError('');
     } else if (error) {
       console.error('Fetch notes error:', error);
@@ -125,8 +135,9 @@ export default function PlacesTab({ day, userEmail }) {
   }
 
   async function deleteNote(note) {
-    // Remove from the offline queue (no-op if it was never queued)
-    unqueueNote(note.id).catch(() => {});
+    // Remove from the offline queue first (awaited) so a concurrent flush on
+    // reconnect can't re-sync a note we're deleting.
+    await unqueueNote(note.id).catch(() => {});
     const { error } = await supabase
       .from('trip_notes')
       .delete()

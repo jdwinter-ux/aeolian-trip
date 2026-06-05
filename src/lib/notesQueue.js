@@ -31,6 +31,7 @@ function openDB() {
     };
     req.onsuccess = () => resolve(req.result);
     req.onerror = () => reject(req.error);
+    req.onblocked = () => reject(new Error('IndexedDB open blocked'));
   });
 }
 
@@ -98,7 +99,17 @@ export async function unqueueNote(id) {
 // Push all queued notes to Supabase. Idempotent: upsert with ignoreDuplicates
 // means a retry (or a crash mid-sync) can never create a duplicate. Succeeded
 // notes are removed from the queue; failures stay for the next attempt.
-export async function flushNotes() {
+//
+// Coalesced: overlapping callers (e.g. app mount + the 'online' event firing
+// together) share one in-flight run instead of double-processing the queue.
+let flushing = null;
+export function flushNotes() {
+  if (flushing) return flushing;
+  flushing = doFlush().finally(() => { flushing = null; });
+  return flushing;
+}
+
+async function doFlush() {
   if (!hasIDB()) return 0;
   if (typeof navigator !== 'undefined' && !navigator.onLine) return 0;
 
@@ -111,18 +122,19 @@ export async function flushNotes() {
 
   let synced = 0;
   for (const note of all) {
-    const { error } = await supabase
-      .from('trip_notes')
-      .upsert(note, { onConflict: 'id', ignoreDuplicates: true });
-    if (!error) {
-      try {
+    try {
+      const { error } = await supabase
+        .from('trip_notes')
+        .upsert(note, { onConflict: 'id', ignoreDuplicates: true });
+      if (!error) {
         await unqueueNote(note.id);
         synced++;
-      } catch {
-        // leave it; a later flush will remove it
       }
+      // on error: leave queued for the next flush
+    } catch (e) {
+      // network/SDK throw or unqueue failure — leave queued, never reject
+      console.debug('Flush note failed:', e?.message);
     }
-    // on error: leave queued for the next flush
   }
   return synced;
 }

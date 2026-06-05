@@ -4,6 +4,26 @@ Running log of work on the Aeolian Islands Voyage Journal. Newest session first.
 
 ---
 
+## Session — 2026-06-05 (robustness pass — offline notes)
+
+### Completed this session
+- Reviewed the offline-notes queue + reconnect code and hardened it:
+  - `flushNotes` is **coalesced** (one in-flight run; mount + reconnect can't double-process) and wraps each upsert so it **never rejects** (no unhandled rejections from fire-and-forget calls).
+  - `deleteNote` now **awaits** the dequeue before the server delete (a pending note deleted right before reconnect can't be re-synced).
+  - `fetchNotes` **preserves the current day's still-pending notes** during its merge (day-filtered) so a concurrent refetch can't drop an optimistic note.
+  - `openDB` got an `onblocked` handler (won't hang on a blocked open).
+
+### Working / tested
+- `npm run build` clean (SW emitted); `npm test` 8/8; no new lint rule types. Frontend-only.
+
+### Incomplete / buggy / caveats
+- Acknowledged (not fixed): upsert-succeeds-but-dequeue-fails re-sends harmlessly (idempotent); ChatTab `_error`-clobber and identical-message collapse are pre-existing edges; offline delete of an already-synced note still reappears on reconnect (Tier-3 limit).
+
+### Tackle next time
+- Phase 3b (offline photos); PDF export; photo cropping; missing PWA icon PNGs.
+
+---
+
 ## Session — 2026-06-05 (Phase 3a — offline notes)
 
 ### Completed this session
