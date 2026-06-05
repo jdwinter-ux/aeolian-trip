@@ -4,6 +4,26 @@ Running log of work on the Aeolian Islands Voyage Journal. Newest session first.
 
 ---
 
+## Session — 2026-06-05 (Phase 3a — offline notes)
+
+### Completed this session
+- New `src/lib/notesQueue.js` — dependency-free IndexedDB queue (`queueNote`, `getQueuedNotesForDay`, `unqueueNote`, `flushNotes`, `newId`). Sync is idempotent via client-generated UUID + `upsert(..., { onConflict: 'id', ignoreDuplicates: true })`; guards for missing IndexedDB/crypto.
+- `src/App.jsx` flushes the queue on mount (with session) and on reconnect.
+- `src/components/PlacesTab.jsx`: `saveNote` queues offline (with a "⏳ Saving — syncs when online" badge), `fetchNotes` merges still-queued notes (survives reload), realtime `onInsert` upserts to clear the badge on sync, `deleteNote` handles pending notes.
+
+### Working / tested
+- `npm run build` clean (SW emitted); `npm test` 8/8; no new lint rule types. No DB migration, no new dependency.
+- Full E2E needs a browser (IndexedDB + offline toggle) — verify on deploy.
+
+### Incomplete / buggy / caveats
+- Offline **deletion of an already-synced** note can't reach the server until reconnect (it reappears on refetch) — only note *creation* is fully offline.
+- No automated test for the IndexedDB queue (would need `fake-indexeddb`); covered by manual E2E.
+
+### Tackle next time
+- Phase 3b (offline photos — the heavy half); PDF export; photo cropping; missing PWA icon PNGs.
+
+---
+
 ## Session — 2026-06-05 (refetch on reconnect)
 
 ### Completed this session

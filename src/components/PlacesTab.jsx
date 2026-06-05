@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { useRealtime } from '../lib/useRealtime';
 import { useOnReconnect } from '../lib/useOnReconnect';
+import { queueNote, getQueuedNotesForDay, unqueueNote, newId } from '../lib/notesQueue';
 import { DAY_DETAILS } from '../data/dayDetails';
 import { THEME } from '../config/theme';
 
@@ -37,7 +38,12 @@ export default function PlacesTab({ day, userEmail }) {
     dayNumber ? { table: 'trip_notes', filter: `day_number=eq.${dayNumber}` } : {},
     {
       onInsert: (row) =>
-        setNotes(prev => (prev.some(n => n.id === row.id) ? prev : [...prev, row])),
+        setNotes(prev => {
+          const idx = prev.findIndex(n => n.id === row.id);
+          // Replace an optimistic/pending copy with the server row (clears the badge)
+          if (idx !== -1) return prev.map((n, i) => (i === idx ? row : n));
+          return [...prev, row];
+        }),
       onDelete: (oldRow) =>
         setNotes(prev => prev.filter(n => n.id !== oldRow.id)),
     }
@@ -58,11 +64,19 @@ export default function PlacesTab({ day, userEmail }) {
 
     if (!req.active) return; // a newer day was selected; drop this stale result
 
+    // Notes saved offline (not yet on the server) are shown with a pending badge
+    const queued = await getQueuedNotesForDay(dayNumber);
+    if (!req.active) return;
+
     if (!error && data) {
-      setNotes(data);
+      const have = new Set(data.map(n => n.id));
+      const pending = queued.filter(q => !have.has(q.id)).map(q => ({ ...q, _pending: true }));
+      setNotes([...data, ...pending]);
       setNotesError('');
     } else if (error) {
       console.error('Fetch notes error:', error);
+      // Offline/failed: at least show what we have queued locally
+      setNotes(queued.map(q => ({ ...q, _pending: true })));
       setNotesError("Couldn't load notes. They'll appear when you're back online.");
     }
     setNotesLoading(false);
@@ -73,34 +87,55 @@ export default function PlacesTab({ day, userEmail }) {
     setSaving(true);
     setNotesError('');
 
-    const { data, error } = await supabase
-      .from('trip_notes')
-      .insert({
-        day_number: dayNumber,
-        author_email: userEmail,
-        body: noteInput.trim(),
-      })
-      .select()
-      .single();
+    // Client-generated id -> idempotent sync + clean realtime de-dup
+    const note = {
+      id: newId(),
+      day_number: dayNumber,
+      author_email: userEmail,
+      body: noteInput.trim(),
+      created_at: new Date().toISOString(),
+    };
 
-    if (!error && data) {
-      setNotes(prev => (prev.some(n => n.id === data.id) ? prev : [...prev, data]));
-      setNoteInput('');
+    // Show it immediately, marked pending until it reaches the server
+    setNotes(prev => [...prev, { ...note, _pending: true }]);
+    setNoteInput('');
+
+    const { error } = await supabase
+      .from('trip_notes')
+      .upsert(note, { onConflict: 'id', ignoreDuplicates: true });
+
+    if (!error) {
+      setNotes(prev => prev.map(n => (n.id === note.id ? { ...n, _pending: false } : n)));
+    } else if (typeof navigator !== 'undefined' && !navigator.onLine) {
+      // Offline — queue it; the badge stays until it syncs on reconnect
+      try {
+        await queueNote(note);
+      } catch (e) {
+        console.error('Queue note failed:', e);
+        setNotes(prev => prev.filter(n => n.id !== note.id));
+        setNotesError("Couldn't save your note offline on this device.");
+      }
     } else {
+      // Online but a real error (e.g. RLS) — revert and surface
       console.error('Save note error:', error);
-      setNotesError("Couldn't save your note. Check your connection and try again.");
+      setNotes(prev => prev.filter(n => n.id !== note.id));
+      setNotesError("Couldn't save your note. Please try again.");
     }
     setSaving(false);
   }
 
-  async function deleteNote(noteId) {
+  async function deleteNote(note) {
+    // Remove from the offline queue (no-op if it was never queued)
+    unqueueNote(note.id).catch(() => {});
     const { error } = await supabase
       .from('trip_notes')
       .delete()
-      .eq('id', noteId);
+      .eq('id', note.id);
 
-    if (!error) {
-      setNotes(prev => prev.filter(n => n.id !== noteId));
+    // Remove locally when the server delete worked, or it was only pending,
+    // or we're offline (queue entry already removed above).
+    if (!error || note._pending || (typeof navigator !== 'undefined' && !navigator.onLine)) {
+      setNotes(prev => prev.filter(n => n.id !== note.id));
     } else {
       console.error('Delete note error:', error);
       setNotesError("Couldn't delete that note. Please try again.");
@@ -291,7 +326,7 @@ export default function PlacesTab({ day, userEmail }) {
                   </div>
                   {note.author_email === userEmail && (
                     <button
-                      onClick={() => deleteNote(note.id)}
+                      onClick={() => deleteNote(note)}
                       style={{
                         background: 'none',
                         border: 'none',
@@ -315,8 +350,15 @@ export default function PlacesTab({ day, userEmail }) {
                   fontSize: '0.65rem',
                   color: THEME.blueDim,
                   marginTop: '0.6rem',
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  gap: '0.5rem',
                 }}>
-                  {new Date(note.created_at).toLocaleString()}
+                  <span>{new Date(note.created_at).toLocaleString()}</span>
+                  {note._pending && (
+                    <span style={{ color: THEME.goldMuted }}>⏳ Saving — syncs when online</span>
+                  )}
                 </div>
               </div>
             ))}

@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { supabase } from './lib/supabase';
 import { useRealtime } from './lib/useRealtime';
 import { useOnReconnect } from './lib/useOnReconnect';
+import { flushNotes } from './lib/notesQueue';
 import { TRIP } from './data/trip';
 import LoginScreen from './components/LoginScreen';
 import DaySelector from './components/DaySelector';
@@ -56,6 +57,7 @@ export default function App() {
   useEffect(() => {
     if (session) {
       fetchTotalPhotos();
+      flushNotes(); // sync any notes saved offline in a previous session
     }
   }, [session]);
 
@@ -69,9 +71,12 @@ export default function App() {
     }
   );
 
-  // Recover the count after a reconnect (realtime gaps aren't replayed)
+  // Recover the count + flush queued offline notes after a reconnect
   useOnReconnect(() => {
-    if (session) fetchTotalPhotos();
+    if (session) {
+      fetchTotalPhotos();
+      flushNotes();
+    }
   });
 
   async function fetchTotalPhotos() {
