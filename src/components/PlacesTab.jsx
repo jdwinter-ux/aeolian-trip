@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { useRealtime } from '../lib/useRealtime';
+import { useOnReconnect } from '../lib/useOnReconnect';
 import { DAY_DETAILS } from '../data/dayDetails';
 import { THEME } from '../config/theme';
 
@@ -41,6 +42,11 @@ export default function PlacesTab({ day, userEmail }) {
         setNotes(prev => prev.filter(n => n.id !== oldRow.id)),
     }
   );
+
+  // Refetch this day's notes after a reconnect to catch anything missed offline
+  useOnReconnect(() => {
+    if (dayNumber) fetchNotes();
+  });
 
   async function fetchNotes(req = { active: true }) {
     setNotesLoading(true);

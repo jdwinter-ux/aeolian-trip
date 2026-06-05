@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { sendChatMessage, fetchChatHistory, uploadChatAttachment, mergeMessage } from '../lib/chat';
 import { useRealtime } from '../lib/useRealtime';
+import { useOnReconnect } from '../lib/useOnReconnect';
 import { PHOTO_ONLY_PLACEHOLDER } from '../lib/chatConstants';
 import { THEME } from '../config/theme';
 
@@ -43,6 +44,17 @@ export default function ChatTab({ userEmail }) {
   // Live updates: messages from other travelers (and our own, once persisted)
   useRealtime('chat', { table: 'trip_chat' }, {
     onInsert: (row) => setMessages(prev => mergeMessage(prev, row)),
+  });
+
+  // After a reconnect, merge fresh history to recover any messages missed while
+  // offline — no loading flash, and optimistic/local messages are preserved.
+  useOnReconnect(async () => {
+    try {
+      const history = await fetchChatHistory();
+      setMessages(prev => history.reduce((acc, row) => mergeMessage(acc, row), prev));
+    } catch (e) {
+      console.debug('Chat reconnect refetch failed:', e?.message);
+    }
   });
 
   async function loadChatHistory() {

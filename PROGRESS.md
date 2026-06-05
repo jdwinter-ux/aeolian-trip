@@ -4,6 +4,26 @@ Running log of work on the Aeolian Islands Voyage Journal. Newest session first.
 
 ---
 
+## Session — 2026-06-05 (refetch on reconnect)
+
+### Completed this session
+- New `src/lib/useOnReconnect.js` hook (ref-stable `window 'online'` listener).
+- Wired refetch-on-reconnect into the data spots so events missed during a realtime disconnect are recovered automatically:
+  - `App.jsx` → header photo count; `PlacesTab.jsx` → day notes; `PhotosTab.jsx` → day photos.
+  - `ChatTab.jsx` → re-fetches chat history and **merges** via existing `mergeMessage` (no loading flash; optimistic/local messages preserved).
+
+### Working / tested
+- `npm run build` clean (SW intact); `npm test` 8/8; no new lint rule types. Frontend-only (no `api/` changes).
+
+### Incomplete / buggy / caveats
+- Keys off `navigator.onLine` flipping false→true, so it recovers from a real disconnect→reconnect; it won't fire on dead-uplink wifi where `onLine` never changed (that case is covered by the write-error feedback added previously).
+- `useOnReconnect` has no unit test (would need jsdom; current vitest runs in node env).
+
+### Tackle next time
+- Tier 3 offline writes (queue + sync); PDF export; photo cropping; missing PWA icon PNGs.
+
+---
+
 ## Session — 2026-06-01 (robustness review #2)
 
 ### Completed this session

@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
 import { useRealtime } from '../lib/useRealtime';
+import { useOnReconnect } from '../lib/useOnReconnect';
 import { identifyPhoto } from '../lib/identify';
 import { CATEGORY_ICONS } from '../data/trip';
 import { THEME } from '../config/theme';
@@ -52,6 +53,11 @@ export default function PhotosTab({ day, userEmail }) {
         setPhotos(prev => prev.filter(p => p.id !== oldRow.id)),
     }
   );
+
+  // Refetch this day's photos after a reconnect to catch anything missed offline
+  useOnReconnect(() => {
+    if (dayNumber) fetchPhotos();
+  });
 
   if (!day || !dayNumber) {
     return (

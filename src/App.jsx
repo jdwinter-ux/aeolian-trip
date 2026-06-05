@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { supabase } from './lib/supabase';
 import { useRealtime } from './lib/useRealtime';
+import { useOnReconnect } from './lib/useOnReconnect';
 import { TRIP } from './data/trip';
 import LoginScreen from './components/LoginScreen';
 import DaySelector from './components/DaySelector';
@@ -67,6 +68,11 @@ export default function App() {
       onDelete: () => fetchTotalPhotos(),
     }
   );
+
+  // Recover the count after a reconnect (realtime gaps aren't replayed)
+  useOnReconnect(() => {
+    if (session) fetchTotalPhotos();
+  });
 
   async function fetchTotalPhotos() {
     try {
