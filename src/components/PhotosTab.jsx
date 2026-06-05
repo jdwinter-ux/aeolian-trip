@@ -27,6 +27,11 @@ export default function PhotosTab({ day, userEmail }) {
   const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
   const dayNumber = day?.n;
 
+  // Mirror of `photos` for reading current state outside the render/updater
+  // (used to revoke object URLs as a side effect, never inside a setState updater).
+  const photosRef = useRef([]);
+  useEffect(() => { photosRef.current = photos; }, [photos]);
+
   useEffect(() => {
     if (!dayNumber) return;
     const req = { active: true };
@@ -40,18 +45,19 @@ export default function PhotosTab({ day, userEmail }) {
     `photos-day-${dayNumber}`,
     dayNumber ? { table: 'trip_photos', filter: `day_number=eq.${dayNumber}` } : {},
     {
-      onInsert: (row) =>
+      onInsert: (row) => {
+        // Release a synced pending photo's object URL OUTSIDE the updater
+        // (updaters are double-invoked under StrictMode — no side effects there).
+        const existing = photosRef.current.find(p => p.id === row.id);
+        if (existing?._objectUrl) URL.revokeObjectURL(existing._objectUrl);
         setPhotos(prev => {
-          const existing = prev.find(p => p.id === row.id);
-          if (existing) {
-            // A pending (offline) photo just synced — swap to the server row and
-            // release its local object URL.
-            if (existing._objectUrl) URL.revokeObjectURL(existing._objectUrl);
+          if (prev.some(p => p.id === row.id)) {
             return prev.map(p => (p.id === row.id ? { ...row, _loading: !row.identified_at } : p));
           }
           // Show a spinner for photos still awaiting AI identification
           return [{ ...row, _loading: !row.identified_at }, ...prev];
-        }),
+        });
+      },
       onUpdate: (row) =>
         setPhotos(prev => prev.map(p =>
           p.id === row.id ? { ...p, ...row, _loading: false, _failed: false } : p
@@ -66,9 +72,15 @@ export default function PhotosTab({ day, userEmail }) {
     if (dayNumber) fetchPhotos();
   });
 
+  // Refetch when the offline queue finishes syncing (covers a missed realtime echo)
+  useEffect(() => {
+    const handler = () => { if (dayNumber) fetchPhotos(); };
+    window.addEventListener('photos-synced', handler);
+    return () => window.removeEventListener('photos-synced', handler);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dayNumber]);
+
   // Revoke any outstanding object URLs (for pending offline photos) on unmount
-  const photosRef = useRef([]);
-  useEffect(() => { photosRef.current = photos; }, [photos]);
   useEffect(() => () => {
     photosRef.current.forEach(p => p._objectUrl && URL.revokeObjectURL(p._objectUrl));
   }, []);
@@ -95,42 +107,43 @@ export default function PhotosTab({ day, userEmail }) {
     const queued = await getQueuedPhotosForDay(day.n);
     if (!req.active) return;
 
-    setPhotos(prev => {
-      let serverPhotos;
-      if (!error && data) {
-        const now = new Date();
-        serverPhotos = data.map(photo => {
-          const ageMinutes = (now - new Date(photo.created_at)) / 1000 / 60;
-          const needsRetry = !photo.identified_at && ageMinutes > 2;
-          return {
-            ...photo,
-            _failed: needsRetry,
-            title: needsRetry ? (photo.title === 'Identifying...' ? 'Photo' : photo.title) : photo.title,
-            description: needsRetry ? 'Identification failed — tap to retry.' : photo.description,
-          };
-        });
-      } else {
-        // Offline/failed fetch — keep the server photos we already had
-        serverPhotos = prev.filter(p => !p._pending);
-      }
-
-      const have = new Set(serverPhotos.map(p => p.id));
-      // Carry over current-day pending photos (keep their existing object URLs)
-      const localPending = prev.filter(p => p._pending && p.day_number === day.n && !have.has(p.id));
-      const localIds = new Set(localPending.map(p => p.id));
-      const seen = new Set([...have, ...localIds]);
-      // Restore any queued photos not already shown (e.g. after a reload)
-      const queuedNew = queued.filter(q => !seen.has(q.id)).map(pendingPhotoFromEntry);
-
-      // Release object URLs from the previous list that we're not carrying over
-      prev.forEach(p => {
-        if (p._objectUrl && !localIds.has(p.id)) URL.revokeObjectURL(p._objectUrl);
+    // Compute the merge against the latest committed state. All object-URL
+    // create/revoke side effects happen HERE (never inside a setState updater,
+    // which StrictMode double-invokes).
+    const prev = photosRef.current;
+    let serverPhotos;
+    if (!error && data) {
+      const now = new Date();
+      serverPhotos = data.map(photo => {
+        const ageMinutes = (now - new Date(photo.created_at)) / 1000 / 60;
+        const needsRetry = !photo.identified_at && ageMinutes > 2;
+        return {
+          ...photo,
+          _failed: needsRetry,
+          title: needsRetry ? (photo.title === 'Identifying...' ? 'Photo' : photo.title) : photo.title,
+          description: needsRetry ? 'Identification failed — tap to retry.' : photo.description,
+        };
       });
+    } else {
+      // Offline/failed fetch — keep the server photos we already had
+      serverPhotos = prev.filter(p => !p._pending);
+      console.error('Fetch photos error:', error);
+    }
 
-      return [...queuedNew, ...localPending, ...serverPhotos];
+    const have = new Set(serverPhotos.map(p => p.id));
+    // Carry over current-day pending photos (keep their existing object URLs)
+    const localPending = prev.filter(p => p._pending && p.day_number === day.n && !have.has(p.id));
+    const localIds = new Set(localPending.map(p => p.id));
+    const seen = new Set([...have, ...localIds]);
+    // Restore any queued photos not already shown (e.g. after a reload)
+    const queuedNew = queued.filter(q => !seen.has(q.id)).map(pendingPhotoFromEntry);
+
+    // Release object URLs from the previous list that we're not carrying over
+    prev.forEach(p => {
+      if (p._objectUrl && !localIds.has(p.id)) URL.revokeObjectURL(p._objectUrl);
     });
 
-    if (error) console.error('Fetch photos error:', error);
+    setPhotos([...queuedNew, ...localPending, ...serverPhotos]);
     setLoading(false);
   }
 

@@ -4,6 +4,24 @@ Running log of work on the Aeolian Islands Voyage Journal. Newest session first.
 
 ---
 
+## Session — 2026-06-05 (robustness pass — offline photos)
+
+### Completed this session
+- Reviewed Phase 3b and fixed the two real issues:
+  - **Object-URL side effects moved out of `setPhotos` updaters** (`fetchPhotos`, realtime `onInsert`) — they now run as plain side effects via a `photosRef` snapshot, fixing a StrictMode dev blob-URL leak and shrinking reconnect-race windows; updaters are pure.
+  - **Pending badge could stick if the realtime echo was missed** — `flushPhotos` dispatches a `photos-synced` event; PhotosTab refetches on it so a synced photo reconciles regardless of echo timing.
+
+### Working / tested
+- `npm run build` clean (SW emitted); `npm test` 8/8; no new lint rule types. Frontend-only.
+
+### Incomplete / buggy / caveats
+- Acknowledged (narrow / unlikely with our permissive RLS + simple schema): a persistently-failing insert would re-upload the blob / could clobber via `upsert:true`; multi-tab concurrent flush double-identifies; quota eviction is silent; brief storage-propagation image flash on sync.
+
+### Tackle next time
+- PDF export; missing PWA icon PNGs; optional Travelers-headshot offline support.
+
+---
+
 ## Session — 2026-06-05 (Phase 3b — offline photos)
 
 ### Completed this session

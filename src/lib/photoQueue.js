@@ -153,5 +153,11 @@ async function doFlush() {
       console.debug('Flush photo failed:', e?.message);
     }
   }
+  // Tell any open PhotosTab to refetch — covers the case where the realtime
+  // INSERT echo was missed (e.g. socket still reconnecting) so a pending tile
+  // would otherwise keep its badge.
+  if (synced > 0 && typeof window !== 'undefined') {
+    window.dispatchEvent(new Event('photos-synced'));
+  }
   return synced;
 }
