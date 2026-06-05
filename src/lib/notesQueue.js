@@ -1,4 +1,5 @@
 import { supabase } from './supabase';
+import { newId } from './id';
 
 // Durable offline queue for trip notes (IndexedDB). Notes are created with a
 // client-generated UUID so they have their final id before they ever reach the
@@ -10,15 +11,7 @@ const DB_VERSION = 1;
 
 const hasIDB = () => typeof indexedDB !== 'undefined';
 
-// Generate a stable id (used as the note's primary key)
-export function newId() {
-  if (typeof crypto !== 'undefined' && crypto.randomUUID) return crypto.randomUUID();
-  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
-    const r = (Math.random() * 16) | 0;
-    const v = c === 'x' ? r : (r & 0x3) | 0x8;
-    return v.toString(16);
-  });
-}
+export { newId }; // re-exported for existing importers (PlacesTab)
 
 function openDB() {
   return new Promise((resolve, reject) => {

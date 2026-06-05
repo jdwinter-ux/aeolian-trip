@@ -4,6 +4,28 @@ Running log of work on the Aeolian Islands Voyage Journal. Newest session first.
 
 ---
 
+## Session — 2026-06-05 (Phase 3b — offline photos)
+
+### Completed this session
+- New `src/lib/id.js` (shared `newId`, re-exported by notesQueue).
+- New `src/lib/photoQueue.js` — own IndexedDB DB storing the image blob; coalesced, never-rejecting `flushPhotos` doing the idempotent 3-step sync (upload `{upsert:true}` → row `upsert(ignoreDuplicates)` → dequeue → best-effort identify) with a deterministic path `${day}/${id}.${ext}`.
+- `src/App.jsx`: `flushPhotos()` on mount + reconnect; one-time `navigator.storage.persist()`.
+- `src/components/PhotosTab.jsx`: client-UUID uploads; offline capture queues the file and shows it from a local object URL with a "Saved offline" badge; `fetchPhotos` restores queued photos on reload (and preserves in-flight pending); realtime `onInsert` swaps to the server row and revokes the object URL; object URLs revoked on delete/unmount; edit hidden for pending; delete dequeues pending.
+- Original file is uploaded so EXIF/GPS survives for identification.
+
+### Working / tested
+- `npm run build` clean (SW emitted); `npm test` 8/8; no new lint rule types. No DB migration, no new dependency.
+- Full E2E needs a browser (IndexedDB + offline) — verify on deploy.
+
+### Incomplete / buggy / caveats
+- Storage quota: many large blobs could exceed IndexedDB; `queuePhoto` surfaces failures, `persist()` reduces eviction, but no downscaling (kept originals for EXIF).
+- Offline delete of an already-synced photo still relies on reconnect; offline Travelers headshots not covered.
+
+### Tackle next time
+- PDF export; missing PWA icon PNGs; optional Travelers-headshot offline support.
+
+---
+
 ## Session — 2026-06-05 (robustness pass — offline notes)
 
 ### Completed this session

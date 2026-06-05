@@ -1,8 +1,10 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '../lib/supabase';
 import { useRealtime } from '../lib/useRealtime';
 import { useOnReconnect } from '../lib/useOnReconnect';
 import { identifyPhoto } from '../lib/identify';
+import { newId } from '../lib/id';
+import { queuePhoto, getQueuedPhotosForDay, unqueuePhoto } from '../lib/photoQueue';
 import { CATEGORY_ICONS } from '../data/trip';
 import { THEME } from '../config/theme';
 
@@ -39,12 +41,17 @@ export default function PhotosTab({ day, userEmail }) {
     dayNumber ? { table: 'trip_photos', filter: `day_number=eq.${dayNumber}` } : {},
     {
       onInsert: (row) =>
-        setPhotos(prev => (
-          prev.some(p => p.id === row.id)
-            ? prev
-            // Show a spinner for photos still awaiting AI identification
-            : [{ ...row, _loading: !row.identified_at }, ...prev]
-        )),
+        setPhotos(prev => {
+          const existing = prev.find(p => p.id === row.id);
+          if (existing) {
+            // A pending (offline) photo just synced — swap to the server row and
+            // release its local object URL.
+            if (existing._objectUrl) URL.revokeObjectURL(existing._objectUrl);
+            return prev.map(p => (p.id === row.id ? { ...row, _loading: !row.identified_at } : p));
+          }
+          // Show a spinner for photos still awaiting AI identification
+          return [{ ...row, _loading: !row.identified_at }, ...prev];
+        }),
       onUpdate: (row) =>
         setPhotos(prev => prev.map(p =>
           p.id === row.id ? { ...p, ...row, _loading: false, _failed: false } : p
@@ -58,6 +65,13 @@ export default function PhotosTab({ day, userEmail }) {
   useOnReconnect(() => {
     if (dayNumber) fetchPhotos();
   });
+
+  // Revoke any outstanding object URLs (for pending offline photos) on unmount
+  const photosRef = useRef([]);
+  useEffect(() => { photosRef.current = photos; }, [photos]);
+  useEffect(() => () => {
+    photosRef.current.forEach(p => p._objectUrl && URL.revokeObjectURL(p._objectUrl));
+  }, []);
 
   if (!day || !dayNumber) {
     return (
@@ -77,28 +91,69 @@ export default function PhotosTab({ day, userEmail }) {
 
     if (!req.active) return; // a newer day was selected; drop this stale result
 
-    if (!error && data) {
-      // Mark photos as needing retry if they haven't been identified
-      // and were created more than 2 minutes ago
-      const now = new Date();
-      const photosWithState = data.map(photo => {
-        const createdAt = new Date(photo.created_at);
-        const ageMinutes = (now - createdAt) / 1000 / 60;
-        const needsRetry = !photo.identified_at && ageMinutes > 2;
-        return {
-          ...photo,
-          _failed: needsRetry,
-          title: needsRetry ? (photo.title === 'Identifying...' ? 'Photo' : photo.title) : photo.title,
-          description: needsRetry ? 'Identification failed — tap to retry.' : photo.description,
-        };
+    // Photos captured offline (not yet uploaded) are shown from local blobs
+    const queued = await getQueuedPhotosForDay(day.n);
+    if (!req.active) return;
+
+    setPhotos(prev => {
+      let serverPhotos;
+      if (!error && data) {
+        const now = new Date();
+        serverPhotos = data.map(photo => {
+          const ageMinutes = (now - new Date(photo.created_at)) / 1000 / 60;
+          const needsRetry = !photo.identified_at && ageMinutes > 2;
+          return {
+            ...photo,
+            _failed: needsRetry,
+            title: needsRetry ? (photo.title === 'Identifying...' ? 'Photo' : photo.title) : photo.title,
+            description: needsRetry ? 'Identification failed — tap to retry.' : photo.description,
+          };
+        });
+      } else {
+        // Offline/failed fetch — keep the server photos we already had
+        serverPhotos = prev.filter(p => !p._pending);
+      }
+
+      const have = new Set(serverPhotos.map(p => p.id));
+      // Carry over current-day pending photos (keep their existing object URLs)
+      const localPending = prev.filter(p => p._pending && p.day_number === day.n && !have.has(p.id));
+      const localIds = new Set(localPending.map(p => p.id));
+      const seen = new Set([...have, ...localIds]);
+      // Restore any queued photos not already shown (e.g. after a reload)
+      const queuedNew = queued.filter(q => !seen.has(q.id)).map(pendingPhotoFromEntry);
+
+      // Release object URLs from the previous list that we're not carrying over
+      prev.forEach(p => {
+        if (p._objectUrl && !localIds.has(p.id)) URL.revokeObjectURL(p._objectUrl);
       });
-      setPhotos(photosWithState);
-    }
+
+      return [...queuedNew, ...localPending, ...serverPhotos];
+    });
+
+    if (error) console.error('Fetch photos error:', error);
     setLoading(false);
   }
 
   function getPhotoUrl(storagePath) {
     return `${supabaseUrl}/storage/v1/object/public/photos/${storagePath}`;
+  }
+
+  // Build a display photo (with a local object URL) from a queued offline entry
+  function pendingPhotoFromEntry(entry) {
+    return {
+      id: entry.id,
+      day_number: entry.day_number,
+      author_email: entry.author_email,
+      storage_path: `${entry.day_number}/${entry.id}.${entry.ext}`,
+      title: 'Saved offline',
+      location: '',
+      description: "Will upload when you're back online.",
+      tags: [],
+      category: 'landmark',
+      created_at: entry.created_at,
+      _pending: true,
+      _objectUrl: URL.createObjectURL(entry.file),
+    };
   }
 
   const handlePhotos = useCallback(async (files) => {
@@ -110,36 +165,55 @@ export default function PhotosTab({ day, userEmail }) {
     let failures = 0;
 
     for (const file of files) {
-      const fileExt = file.name.split('.').pop();
-      const fileName = `${day.n}/${Date.now()}-${Math.random().toString(36).slice(2)}.${fileExt}`;
+      const ext = file.name.split('.').pop();
+      const id = newId(); // client id -> idempotent sync + deterministic path
+      const path = `${day.n}/${id}.${ext}`;
+      const base = {
+        id,
+        day_number: day.n,
+        author_email: userEmail,
+        storage_path: path,
+        title: 'Identifying...',
+        location: 'Analyzing photo',
+        description: '',
+        tags: [],
+        category: 'landmark',
+        created_at: new Date().toISOString(),
+      };
 
-      // Upload to Supabase Storage
+      // Offline — queue the file and show it from a local object URL
+      if (typeof navigator !== 'undefined' && !navigator.onLine) {
+        try {
+          await queuePhoto({ id, day_number: day.n, author_email: userEmail, day_context: dayContext, file, ext, created_at: base.created_at });
+          const objectUrl = URL.createObjectURL(file);
+          setPhotos(prev => [{
+            ...base,
+            title: 'Saved offline',
+            location: '',
+            description: "Will upload when you're back online.",
+            _pending: true,
+            _objectUrl: objectUrl,
+          }, ...prev]);
+        } catch (e) {
+          console.error('Queue photo failed:', e);
+          failures++;
+        }
+        continue;
+      }
+
+      // Online — upload, create the row, then identify
       const { error: uploadError } = await supabase.storage
         .from('photos')
-        .upload(fileName, file);
-
+        .upload(path, file, { upsert: true });
       if (uploadError) {
         console.error('Upload error:', uploadError);
         failures++;
         continue;
       }
 
-      // Create photo record with placeholder data
-      const { data: photoRecord, error: insertError } = await supabase
+      const { error: insertError } = await supabase
         .from('trip_photos')
-        .insert({
-          day_number: day.n,
-          author_email: userEmail,
-          storage_path: fileName,
-          title: 'Identifying...',
-          location: 'Analyzing photo',
-          description: '',
-          tags: [],
-          category: 'landmark',
-        })
-        .select()
-        .single();
-
+        .upsert(base, { onConflict: 'id', ignoreDuplicates: true });
       if (insertError) {
         console.error('Insert error:', insertError);
         failures++;
@@ -147,25 +221,19 @@ export default function PhotosTab({ day, userEmail }) {
       }
 
       // Add to local state immediately (optimistic UI)
-      setPhotos(prev => [{ ...photoRecord, _loading: true }, ...prev]);
+      setPhotos(prev => (prev.some(p => p.id === id) ? prev : [{ ...base, _loading: true }, ...prev]));
 
       // Call identify API
       try {
-        const result = await identifyPhoto(photoRecord.id, fileName, dayContext);
-
-        // Update local state with AI results
+        const result = await identifyPhoto(id, path, dayContext);
         setPhotos(prev => prev.map(p =>
-          p.id === photoRecord.id
-            ? { ...p, ...result, _loading: false }
-            : p
+          p.id === id ? { ...p, ...result, _loading: false } : p
         ));
       } catch (err) {
         console.error('Identify error:', err);
         failures++;
-
-        // Update local state to show failure
         setPhotos(prev => prev.map(p =>
-          p.id === photoRecord.id
+          p.id === id
             ? {
                 ...p,
                 title: file.name.split('.')[0] || 'Photo',
@@ -208,6 +276,17 @@ export default function PhotosTab({ day, userEmail }) {
   }
 
   async function deletePhoto(photo) {
+    // Pending (not yet uploaded): drop from the offline queue + release the blob URL
+    if (photo._pending) {
+      await unqueuePhoto(photo.id).catch(() => {});
+      if (photo._objectUrl) URL.revokeObjectURL(photo._objectUrl);
+      setPhotos(prev => prev.filter(p => p.id !== photo.id));
+      // Best-effort in case it synced moments ago
+      supabase.storage.from('photos').remove([photo.storage_path]).catch(() => {});
+      supabase.from('trip_photos').delete().eq('id', photo.id).then(undefined, () => {});
+      return;
+    }
+
     // Delete from storage
     await supabase.storage.from('photos').remove([photo.storage_path]);
 
@@ -341,7 +420,7 @@ export default function PhotosTab({ day, userEmail }) {
             onClick={() => photo._failed && retryIdentify(photo)}
             >
               <img
-                src={getPhotoUrl(photo.storage_path)}
+                src={photo._objectUrl || getPhotoUrl(photo.storage_path)}
                 alt={photo.title}
                 style={{
                   width: '100%', height: '180px', objectFit: 'cover', display: 'block',
@@ -359,16 +438,18 @@ export default function PhotosTab({ day, userEmail }) {
                   </div>
                   {!photo._loading && editingId !== photo.id && (
                     <div style={{ display: 'flex', gap: '0.2rem' }}>
-                      <button
-                        onClick={(e) => { e.stopPropagation(); startEdit(photo); }}
-                        title="Edit / correct"
-                        style={{
-                          background: 'none', border: 'none', color: THEME.blueMuted,
-                          cursor: 'pointer', fontSize: '0.75rem', padding: '0.1rem 0.3rem',
-                        }}
-                      >
-                        ✎
-                      </button>
+                      {!photo._pending && (
+                        <button
+                          onClick={(e) => { e.stopPropagation(); startEdit(photo); }}
+                          title="Edit / correct"
+                          style={{
+                            background: 'none', border: 'none', color: THEME.blueMuted,
+                            cursor: 'pointer', fontSize: '0.75rem', padding: '0.1rem 0.3rem',
+                          }}
+                        >
+                          ✎
+                        </button>
+                      )}
                       {photo.author_email === userEmail && (
                         <button
                           onClick={(e) => { e.stopPropagation(); deletePhoto(photo); }}
@@ -422,7 +503,7 @@ export default function PhotosTab({ day, userEmail }) {
                       <div style={{ fontSize: '0.95rem', color: THEME.cream, fontWeight: 600 }}>
                         {photo._loading ? <span style={{ opacity: 0.6 }}>✨ Identifying...</span> : photo.title}
                       </div>
-                      <div style={{ fontSize: '1.2rem' }}>{photo._loading ? '⏳' : (CATEGORY_ICONS[photo.category] || '📸')}</div>
+                      <div style={{ fontSize: '1.2rem' }}>{(photo._loading || photo._pending) ? '⏳' : (CATEGORY_ICONS[photo.category] || '📸')}</div>
                     </div>
                     <div style={{ fontSize: '0.75rem', color: THEME.gold, marginBottom: '0.5rem' }}>
                       📍 {photo.location}

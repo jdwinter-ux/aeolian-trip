@@ -3,6 +3,7 @@ import { supabase } from './lib/supabase';
 import { useRealtime } from './lib/useRealtime';
 import { useOnReconnect } from './lib/useOnReconnect';
 import { flushNotes } from './lib/notesQueue';
+import { flushPhotos } from './lib/photoQueue';
 import { TRIP } from './data/trip';
 import LoginScreen from './components/LoginScreen';
 import DaySelector from './components/DaySelector';
@@ -57,9 +58,15 @@ export default function App() {
   useEffect(() => {
     if (session) {
       fetchTotalPhotos();
-      flushNotes(); // sync any notes saved offline in a previous session
+      flushNotes();  // sync notes saved offline in a previous session
+      flushPhotos(); // and photos
     }
   }, [session]);
+
+  // Ask the browser to keep our offline queue from being evicted
+  useEffect(() => {
+    navigator.storage?.persist?.().catch(() => {});
+  }, []);
 
   // Keep the header photo count live as photos are added/removed anywhere
   useRealtime(
@@ -71,11 +78,12 @@ export default function App() {
     }
   );
 
-  // Recover the count + flush queued offline notes after a reconnect
+  // Recover the count + flush queued offline notes/photos after a reconnect
   useOnReconnect(() => {
     if (session) {
       fetchTotalPhotos();
       flushNotes();
+      flushPhotos();
     }
   });
 
