@@ -4,6 +4,26 @@ Running log of work on the Aeolian Islands Voyage Journal. Newest session first.
 
 ---
 
+## Session — 2026-06-10 (login overhaul + go-live prep)
+
+Applied to **both** this app and the Corsica & Nice app (kept in sync).
+
+### Completed this session
+- **Login redesigned: shared passcode + magic link → email + in-app OTP code.** `LoginScreen.jsx` now does email → `signInWithOtp` → enter code → `verifyOtp` (no leaving the app, which fixes the mobile browser-bounce that lost sessions). Dropped `VITE_TRIP_PASSCODE` entirely (login is now open email OTP). Normalizes email (trim/lowercase) + mobile input hints.
+- **Variable-length codes.** Codes accept 6–10 digits (Supabase OTP length is configurable; was emitting 8). Later set both projects to 6 in Supabase. Input/validation no longer hardcode length.
+- **Custom SMTP (SendGrid).** Replaced Supabase's built-in sender (~2 emails/hour cap) with SendGrid SMTP, then raised the auth email rate limit. Documented in `FORKING.md`.
+- **Chat reset for go-live.** Added `scripts/reset-chat.mjs` (service_role; deletes `trip_chat` rows + empties `chat-attachments`, paginated). Cleared this project's test data: **40 messages + 14 attachment files**.
+- **Quality pass:** merged Supabase's conflated expired/invalid OTP error into one accurate message; `htmlFor`/`id` on inputs; doc fixes (env-var count, stale "magic link"/passcode references).
+
+### Requires manual Supabase config (per project, not in code)
+- **Email templates must include `{{ .Token }}`** in **both** *Confirm signup* (new users) and *Magic Link* (returning users), or the code-less email breaks login.
+- Custom SMTP settings + raised rate limit live in the dashboard, not the repo.
+
+### Incomplete / caveats
+- **Rotate this project's `service_role` key** — it was pasted into a chat transcript during the reset. Then update it in Vercel.
+
+---
+
 ## Session — 2026-06-05 (robustness pass — offline photos)
 
 ### Completed this session
