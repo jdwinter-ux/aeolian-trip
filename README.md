@@ -7,7 +7,7 @@ A shared travel journal for the Aeolian Islands yacht charter (June 12–19, 202
 - **Day-by-day itinerary** with timeline, activities, and meals
 - **Shared notes** — all travelers can add notes to each day
 - **Photo journal** with AI-powered identification (landmarks, food, places)
-- **Multi-user support** via magic link authentication
+- **Multi-user support** via email login code (OTP) authentication
 - **PWA** — add to home screen for app-like experience
 
 ## Tech Stack
@@ -50,7 +50,6 @@ The app is deployed on Vercel. Any push to `main` triggers a new deployment.
 |----------|-------------|
 | `VITE_SUPABASE_URL` | Your Supabase project URL |
 | `VITE_SUPABASE_ANON_KEY` | Supabase anon/public key |
-| `VITE_TRIP_PASSCODE` | Shared passcode for trip members |
 | `ANTHROPIC_API_KEY` | Anthropic API key (server-side only) |
 | `SUPABASE_SERVICE_ROLE_KEY` | Supabase service role key (server-side only) |
 
@@ -58,21 +57,13 @@ The app is deployed on Vercel. Any push to `main` triggers a new deployment.
 
 ### Adding a Guest
 
-Simply share the trip passcode with them. They enter their email + passcode, receive a magic link, and they're in.
+Just share the URL. They enter their email, receive a login code by email, type it in, and they're in (login is open — no passcode). This relies on the Supabase *Confirm signup* and *Magic Link* email templates including `{{ .Token }}` — see `FORKING.md` step 5.
 
 ### Checking Usage/Costs
 
 - **Supabase:** Dashboard → Project → Usage
 - **Anthropic:** console.anthropic.com → Usage
 - **Vercel:** Dashboard → Project → Usage
-
-### Rotating the Passcode
-
-1. Update `VITE_TRIP_PASSCODE` in Vercel environment variables
-2. Redeploy (or wait for automatic deployment)
-3. Share the new passcode with trip members
-
-Note: Existing logged-in users stay logged in. Only new logins require the updated passcode.
 
 ## Offline support
 
