@@ -12,6 +12,36 @@ try {
   console.log('exifr not available, GPS extraction disabled');
 }
 
+// Format raw EXIF coordinates with the correct hemisphere (handles S/W, not just N/E).
+function formatCoords(lat, lon) {
+  const latStr = `${Math.abs(lat).toFixed(4)}°${lat >= 0 ? 'N' : 'S'}`;
+  const lonStr = `${Math.abs(lon).toFixed(4)}°${lon >= 0 ? 'E' : 'W'}`;
+  return `${latStr}, ${lonStr}`;
+}
+
+// Reverse-geocode coordinates to a human place name via OpenStreetMap Nominatim
+// (free, no API key). Best-effort: a failure/timeout returns null and the caller
+// falls back to raw coordinates — geocoding must never break identification.
+async function reverseGeocode(lat, lon) {
+  try {
+    const url = `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lon}&format=jsonv2&zoom=14&addressdetails=0`;
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 4000);
+    const res = await fetch(url, {
+      signal: controller.signal,
+      // Nominatim's usage policy requires an identifying User-Agent.
+      headers: { 'User-Agent': 'voyage-journal/1.0 (trip photo identifier)' },
+    });
+    clearTimeout(timer);
+    if (!res.ok) return null;
+    const data = await res.json();
+    return data?.display_name || null;
+  } catch (err) {
+    console.log('Reverse geocode unavailable:', err?.message);
+    return null;
+  }
+}
+
 export default async function handler(req, res) {
   // Only allow POST
   if (req.method !== 'POST') {
@@ -50,7 +80,7 @@ export default async function handler(req, res) {
     return res.status(401).json({ error: 'Invalid token' });
   }
 
-  const { photo_id, storage_path, day_context } = req.body;
+  const { photo_id, storage_path, day_context, user_hint, user_coords } = req.body;
 
   if (!photo_id || !storage_path || !day_context) {
     return res.status(400).json({ error: 'Missing required fields' });
@@ -71,7 +101,9 @@ export default async function handler(req, res) {
     const arrayBuffer = await photoData.arrayBuffer();
     const imageBuffer = Buffer.from(arrayBuffer);
 
-    // Extract EXIF data including GPS coordinates (if exifr is available)
+    // Extract EXIF data including GPS coordinates (if exifr is available).
+    // When GPS is present we reverse-geocode it to a place name and treat that
+    // as strong evidence of where the photo was taken (the camera's position).
     let gpsInfo = '';
     if (exifr) {
       try {
@@ -80,12 +112,33 @@ export default async function handler(req, res) {
           pick: ['latitude', 'longitude', 'DateTimeOriginal', 'Make', 'Model'],
         });
         if (exifData?.latitude && exifData?.longitude) {
-          gpsInfo = `\nGPS coordinates: ${exifData.latitude.toFixed(4)}°N, ${exifData.longitude.toFixed(4)}°E`;
-          console.log(`Photo GPS: ${exifData.latitude}, ${exifData.longitude}`);
+          const lat = exifData.latitude, lon = exifData.longitude;
+          gpsInfo = `\nGPS coordinates: ${formatCoords(lat, lon)}`;
+          const place = await reverseGeocode(lat, lon);
+          if (place) {
+            gpsInfo += `\nGPS-derived location (where the photo was taken — strong, reliable evidence of the camera's position; the main subject may be something viewed from here): ${place}`;
+          }
+          console.log(`Photo GPS: ${lat}, ${lon}${place ? ' -> ' + place : ''}`);
         }
       } catch (exifErr) {
         console.log('No EXIF data available:', exifErr.message);
       }
+    }
+
+    // User-provided clarification from the "Refine" flow — the most authoritative
+    // signal, since the user was actually there. A free-text hint and/or the
+    // user's current device location (reverse-geocoded) when they tap "use my
+    // location" at the spot.
+    let userContext = '';
+    if (typeof user_hint === 'string' && user_hint.trim()) {
+      userContext += `\nThe user, who was present, says about this photo: "${user_hint.trim().slice(0, 300)}". Treat this as AUTHORITATIVE — correct the location/subject to match it.`;
+    }
+    if (user_coords && Number.isFinite(user_coords.lat) && Number.isFinite(user_coords.lon)
+        && Math.abs(user_coords.lat) <= 90 && Math.abs(user_coords.lon) <= 180) {
+      const place = await reverseGeocode(user_coords.lat, user_coords.lon);
+      userContext += place
+        ? `\nThe user indicates (from their current location) the photo was taken at or near: ${place}. Treat this as AUTHORITATIVE for placement.`
+        : `\nThe user indicates the photo was taken near ${formatCoords(user_coords.lat, user_coords.lon)}. Treat this as authoritative for placement.`;
     }
 
     // Fetch travelers from database (including uploaded reference headshots)
@@ -95,8 +148,10 @@ export default async function handler(req, res) {
       .order('role', { ascending: true });  // crew first, then guests
 
     // Compress and resize image to fit under 5MB limit
-    // Higher resolution and quality for better recognition
-    const compressedBuffer = await sharp(imageBuffer)
+    // Higher resolution and quality for better recognition.
+    // failOn:'none' tolerates slightly-malformed JPEGs (e.g. stitched phone
+    // panoramas) that would otherwise crash decoding and fail identification.
+    const compressedBuffer = await sharp(imageBuffer, { failOn: 'none' })
       .resize(2048, 2048, { fit: 'inside', withoutEnlargement: true })
       .jpeg({ quality: 90 })
       .toBuffer();
@@ -143,7 +198,7 @@ Known locations for this day:
         const { data: refData, error: refErr } = await supabase.storage.from('photos').download(path);
         if (refErr || !refData) continue;
         const refBuffer = Buffer.from(await refData.arrayBuffer());
-        const refCompressed = await sharp(refBuffer)
+        const refCompressed = await sharp(refBuffer, { failOn: 'none' })
           .resize(512, 512, { fit: 'inside', withoutEnlargement: true })
           .jpeg({ quality: 80 })
           .toBuffer();
@@ -184,17 +239,24 @@ Known locations for this day:
     content.push({ type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: base64 } });
     content.push({
       type: 'text',
-      text: `You are an Aeolian Islands travel expert helping identify photos from a yacht charter trip.
+      text: `You are an Aeolian Islands travel expert helping identify photos from a yacht charter trip (Sicily, Lipari, Stromboli, Panarea, Salina, Filicudi).
 
-This photo (the one labeled "Photo to identify") was taken on ${day_context}.${gpsInfo}${locationContext}${travelerContext}${confirmedContext}
+This photo (the one labeled "Photo to identify") was taken on ${day_context}.${userContext}${gpsInfo}${locationContext}${travelerContext}${confirmedContext}
 
-Identify the location, landmarks, food, or people in the photo to identify. Be specific - use the known locations list to help identify places. ${referenceImages.length > 0 ? 'Match any faces against the labeled reference photos above; only name a person if you are reasonably confident, otherwise leave them out.' : ''}
+First identify what the photo ACTUALLY shows — the real subject, whether that's a landmark, building, food, plant, animal, object, or people. Then place it.
+
+Guidance:
+- If the user has provided a clarification or their own location above, treat it as the MOST authoritative signal — it overrides the GPS, the day's hints, and your own initial guess.
+- If a GPS-derived location is given above, trust it as the camera's actual position and prefer it over the day's known-locations for placement (the subject may still be something seen from there).
+- The known-locations and day context above are HINTS, not ground truth. Use them to help place real landmarks, but do NOT force the photo into one of those places when the subject is something else (a plant, an object, a dish). Identify the true subject even if it isn't a named place.
+- Be specific when confident, and HONEST when not. If you can't determine the exact spot, give your best general placement and say so in the description rather than inventing a precise location — e.g. "a village on Lipari (exact spot uncertain)" beats guessing a specific name. When uncertain, note the visual evidence or plausible alternatives in the description.
+${referenceImages.length > 0 ? '- Match any faces against the labeled reference photos above; only name a person if you are reasonably confident, otherwise leave them out.' : ''}
 
 Respond with ONLY a JSON object (no markdown):
 {
-  "title": "short descriptive name (include people's names if recognized)",
-  "location": "specific place / landmark identified",
-  "description": "2-3 sentence vivid travel description mentioning people by name if present",
+  "title": "short descriptive name of the actual subject (include people's names if recognized)",
+  "location": "best place/area; if the exact spot is uncertain, give the general area and flag the uncertainty",
+  "description": "2-3 sentence vivid travel description; mention people by name if present; express uncertainty or alternatives when you are not sure",
   "tags": ["tag1","tag2","tag3"],
   "category": one of "landmark","food","seascape","wildlife","people","architecture","activity","volcano",
   "people": ["names of recognized travelers; empty array if none"]
